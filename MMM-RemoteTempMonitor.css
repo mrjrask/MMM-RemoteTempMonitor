@@ -1,0 +1,105 @@
+/**
+ * MMM-RemoteTempMonitor Styles
+ * Color-coded temperature display from green (normal) to purple (critical)
+ */
+
+.mmm-remote-temp-monitor {
+    text-align: left;
+}
+
+.mmm-remote-temp-monitor table {
+    border-spacing: 10px 5px;
+    border-collapse: separate;
+}
+
+.mmm-remote-temp-monitor th {
+    text-align: left;
+    padding: 5px 10px;
+    border-bottom: 1px solid #666;
+}
+
+.mmm-remote-temp-monitor td {
+    padding: 5px 10px;
+}
+
+.mmm-remote-temp-monitor .hostname {
+    font-weight: normal;
+    padding-right: 20px;
+}
+
+.mmm-remote-temp-monitor .hostname-header {
+    min-width: 150px;
+}
+
+.mmm-remote-temp-monitor .temp-header {
+    text-align: right;
+    min-width: 60px;
+}
+
+.mmm-remote-temp-monitor .temperature {
+    text-align: right;
+    font-weight: bold;
+    font-size: 1.1em;
+    font-family: monospace;
+}
+
+/* Temperature Color Scale: Green -> Yellow -> Orange -> Red -> Purple */
+
+/* Normal temperature (< 50°C) - Green */
+.mmm-remote-temp-monitor .temp-normal {
+    color: #00ff00;
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+/* Warm temperature (50-60°C) - Yellow-Green */
+.mmm-remote-temp-monitor .temp-warm {
+    color: #9acd32;
+    text-shadow: 0 0 5px rgba(154, 205, 50, 0.5);
+}
+
+/* Hot temperature (60-70°C) - Orange */
+.mmm-remote-temp-monitor .temp-hot {
+    color: #ff8c00;
+    text-shadow: 0 0 5px rgba(255, 140, 0, 0.5);
+}
+
+/* Very hot temperature (70-80°C) - Red */
+.mmm-remote-temp-monitor .temp-very-hot {
+    color: #ff0000;
+    text-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+}
+
+/* Critical temperature (80°C+) - Purple with pulsing effect */
+.mmm-remote-temp-monitor .temp-critical {
+    color: #9400d3;
+    text-shadow: 0 0 10px rgba(148, 0, 211, 0.8);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Pulsing animation for critical temperatures */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(148, 0, 211, 0.8);
+    }
+    50% {
+        opacity: 0.7;
+        text-shadow: 0 0 15px rgba(148, 0, 211, 1);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .mmm-remote-temp-monitor table {
+        border-spacing: 5px 3px;
+    }
+
+    .mmm-remote-temp-monitor th,
+    .mmm-remote-temp-monitor td {
+        padding: 3px 8px;
+    }
+
+    .mmm-remote-temp-monitor .temperature {
+        font-size: 1em;
+    }
+}

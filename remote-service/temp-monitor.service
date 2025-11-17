@@ -1,0 +1,19 @@
+[Unit]
+Description=Remote Temperature Monitor Broadcaster
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/remote-temp-monitor
+ExecStart=/usr/bin/python3 /opt/remote-temp-monitor/temp_broadcaster.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=temp-monitor
+
+[Install]
+WantedBy=multi-user.target
