@@ -104,7 +104,18 @@ Module.register("MMM-RemoteTempMonitor", {
 
             // Hostname column
             const hostnameCell = document.createElement("td");
-            hostnameCell.innerHTML = device.hostname;
+            let displayName = device.hostname;
+
+            // Add Pi model and RAM info if available
+            if (device.pi_model && device.pi_ram) {
+                displayName += ` (${device.pi_model} | ${device.pi_ram})`;
+            } else if (device.pi_model) {
+                displayName += ` (${device.pi_model})`;
+            } else if (device.pi_ram) {
+                displayName += ` (${device.pi_ram})`;
+            }
+
+            hostnameCell.innerHTML = displayName;
             hostnameCell.className = "hostname";
             row.appendChild(hostnameCell);
 

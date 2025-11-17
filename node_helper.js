@@ -75,6 +75,8 @@ module.exports = NodeHelper.create({
                     hostname: data.hostname,
                     celsius: data.temperature.celsius,
                     fahrenheit: data.temperature.fahrenheit,
+                    pi_model: data.pi_model || null,
+                    pi_ram: data.pi_ram || null,
                     lastSeen: Date.now(),
                     ip: rinfo.address
                 };
