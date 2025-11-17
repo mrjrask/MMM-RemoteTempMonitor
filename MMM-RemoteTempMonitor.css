@@ -8,18 +8,18 @@
 }
 
 .mmm-remote-temp-monitor table {
-    border-spacing: 10px 5px;
+    border-spacing: 10px 2px;
     border-collapse: separate;
 }
 
 .mmm-remote-temp-monitor th {
     text-align: left;
-    padding: 5px 10px;
+    padding: 2px 10px;
     border-bottom: 1px solid #666;
 }
 
 .mmm-remote-temp-monitor td {
-    padding: 5px 10px;
+    padding: 2px 10px;
 }
 
 .mmm-remote-temp-monitor .hostname {
@@ -91,12 +91,12 @@
 /* Responsive adjustments */
 @media (max-width: 600px) {
     .mmm-remote-temp-monitor table {
-        border-spacing: 5px 3px;
+        border-spacing: 5px 1px;
     }
 
     .mmm-remote-temp-monitor th,
     .mmm-remote-temp-monitor td {
-        padding: 3px 8px;
+        padding: 1px 8px;
     }
 
     .mmm-remote-temp-monitor .temperature {
