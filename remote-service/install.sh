@@ -17,6 +17,8 @@ INSTALL_DIR="/opt/remote-temp-monitor"
 SERVICE_FILE="temp-monitor.service"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_FILE}"
 SCRIPT_NAME="temp_broadcaster.py"
+ENV_TEMPLATE="temp-monitor.env"
+ENV_TARGET="/etc/default/temp-monitor"
 
 echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}Remote Temperature Monitor${NC}"
@@ -53,6 +55,13 @@ chmod +x "${INSTALL_DIR}/${SCRIPT_NAME}"
 # Copy and enable systemd service
 echo -e "${GREEN}Installing systemd service...${NC}"
 cp "${SERVICE_FILE}" "${SERVICE_PATH}"
+
+# Install environment file template if missing
+if [ ! -f "${ENV_TARGET}" ]; then
+    echo -e "${GREEN}Installing environment file template...${NC}"
+    cp "${ENV_TEMPLATE}" "${ENV_TARGET}"
+    chmod 644 "${ENV_TARGET}"
+fi
 
 # Reload systemd
 echo -e "${GREEN}Reloading systemd daemon...${NC}"
