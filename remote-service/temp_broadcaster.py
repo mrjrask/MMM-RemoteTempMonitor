@@ -9,6 +9,7 @@ import json
 import time
 import platform
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -36,6 +37,7 @@ class TemperatureBroadcaster:
         self.interval = interval
         self.hostname = platform.node()
         self.sock = None
+        self.targets = self._get_targets()
         self.pi_model = self.get_pi_model()
         self.pi_ram = self.get_pi_ram()
         self._setup_socket()
@@ -49,6 +51,18 @@ class TemperatureBroadcaster:
         except Exception as e:
             logger.error(f"Failed to create socket: {e}")
             raise
+
+    def _get_targets(self):
+        """Determine target addresses for temperature updates."""
+        targets_raw = os.getenv("TEMP_MONITOR_TARGETS", "").strip()
+        if not targets_raw:
+            return ["<broadcast>"]
+
+        targets = [target.strip() for target in targets_raw.split(",") if target.strip()]
+        if not targets:
+            return ["<broadcast>"]
+
+        return targets
 
     def get_pi_model(self):
         """
@@ -190,12 +204,18 @@ class TemperatureBroadcaster:
         return json.dumps(message)
 
     def broadcast(self, message):
-        """Send message via UDP broadcast"""
+        """Send message via UDP broadcast or unicast targets"""
+        success = True
         try:
-            broadcast_address = ('<broadcast>', self.port)
-            self.sock.sendto(message.encode('utf-8'), broadcast_address)
-            logger.debug(f"Broadcasted: {message}")
-            return True
+            for target in self.targets:
+                target_address = (target, self.port)
+                try:
+                    self.sock.sendto(message.encode('utf-8'), target_address)
+                    logger.debug(f"Broadcasted to {target}: {message}")
+                except Exception as send_error:
+                    logger.error(f"Broadcast to {target} failed: {send_error}")
+                    success = False
+            return success
         except Exception as e:
             logger.error(f"Broadcast failed: {e}")
             return False
@@ -204,6 +224,7 @@ class TemperatureBroadcaster:
         """Main loop - read temperature and broadcast"""
         logger.info(f"Starting temperature broadcaster for '{self.hostname}'")
         logger.info(f"Broadcasting on port {self.port} every {self.interval} seconds")
+        logger.info(f"Target addresses: {', '.join(self.targets)}")
 
         try:
             while True:

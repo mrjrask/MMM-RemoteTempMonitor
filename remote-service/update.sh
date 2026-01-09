@@ -17,6 +17,8 @@ INSTALL_DIR="/opt/remote-temp-monitor"
 SERVICE_FILE="temp-monitor.service"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_FILE}"
 SCRIPT_NAME="temp_broadcaster.py"
+ENV_TEMPLATE="temp-monitor.env"
+ENV_TARGET="/etc/default/temp-monitor"
 
 echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}Remote Temperature Monitor${NC}"
@@ -55,6 +57,13 @@ chmod +x "${INSTALL_DIR}/${SCRIPT_NAME}"
 echo -e "${GREEN}Updating systemd service file...${NC}"
 cp "${SERVICE_FILE}" "${SERVICE_PATH}"
 
+# Install environment file template if missing
+if [ ! -f "${ENV_TARGET}" ]; then
+    echo -e "${GREEN}Installing environment file template...${NC}"
+    cp "${ENV_TEMPLATE}" "${ENV_TARGET}"
+    chmod 644 "${ENV_TARGET}"
+fi
+
 # Reload systemd
 echo -e "${GREEN}Reloading systemd daemon...${NC}"
 systemctl daemon-reload
@@ -73,7 +82,6 @@ echo "Service Status:"
 systemctl status "${SERVICE_FILE}" --no-pager || true
 echo
 echo -e "${GREEN}The service has been updated and restarted.${NC}"
-echo -e "${GREEN}It should now broadcast model and RAM information.${NC}"
 echo
 echo "To view logs in real-time:"
 echo "  sudo journalctl -u ${SERVICE_FILE} -f"

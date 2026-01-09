@@ -182,6 +182,24 @@ sudo systemctl stop temp-monitor
 sudo systemctl start temp-monitor
 ```
 
+### Sending Updates Across Subnets
+
+UDP broadcast packets do not cross routers by default. To send updates to other subnets or specific hosts, set `TEMP_MONITOR_TARGETS` in `/etc/default/temp-monitor` (installed by the `remote-service/install.sh` script). Provide a comma-separated list of broadcast or unicast addresses:
+
+```bash
+# Example: two directed broadcasts
+TEMP_MONITOR_TARGETS=192.168.1.255,192.168.2.255
+
+# Example: explicit MagicMirror hosts
+TEMP_MONITOR_TARGETS=10.0.0.10,10.0.0.11
+```
+
+After editing, reload the service:
+
+```bash
+sudo systemctl restart temp-monitor
+```
+
 ## Troubleshooting
 
 ### Module shows "No temperature monitors found"
@@ -218,7 +236,7 @@ cat /sys/class/thermal/thermal_zone0/temp
 
 ## Network Security
 
-This module broadcasts temperature data unencrypted over your local network. Only use on trusted networks. The broadcasts are limited to the local subnet.
+This module broadcasts temperature data unencrypted over your local network. Only use on trusted networks. By default broadcasts stay on the local subnet unless you configure directed targets.
 
 ## Customization
 
