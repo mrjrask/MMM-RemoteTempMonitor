@@ -15,6 +15,7 @@ Module.register("MMM-RemoteTempMonitor", {
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
         sortBy: "hostname",           // Sort by: "hostname" or "temperature"
+        devicesPerPage: 4,            // Devices to show per page
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
@@ -30,6 +31,9 @@ Module.register("MMM-RemoteTempMonitor", {
         Log.info("Starting module: " + this.name);
         this.devices = [];
         this.loaded = false;
+        this.currentPage = 0;
+        this.totalPages = 1;
+        this.startPageRotation();
         this.sendSocketNotification("CONFIG", this.config);
     },
 
@@ -65,6 +69,15 @@ Module.register("MMM-RemoteTempMonitor", {
 
         // Sort devices
         const sortedDevices = this.sortDevices(this.devices);
+        const devicesPerPage = this.getDevicesPerPage();
+        const totalPages = Math.max(1, Math.ceil(sortedDevices.length / devicesPerPage));
+        this.totalPages = totalPages;
+        if (this.currentPage >= totalPages) {
+            this.currentPage = 0;
+        }
+
+        const startIndex = this.currentPage * devicesPerPage;
+        const pageDevices = sortedDevices.slice(startIndex, startIndex + devicesPerPage);
 
         // Create table
         const table = document.createElement("table");
@@ -99,7 +112,7 @@ Module.register("MMM-RemoteTempMonitor", {
         // Create body with device rows
         const body = document.createElement("tbody");
 
-        sortedDevices.forEach(device => {
+        pageDevices.forEach(device => {
             const row = document.createElement("tr");
 
             // Hostname column
@@ -144,6 +157,10 @@ Module.register("MMM-RemoteTempMonitor", {
         table.appendChild(body);
         wrapper.appendChild(table);
 
+        if (totalPages > 1) {
+            wrapper.appendChild(this.buildPaginationDots(totalPages));
+        }
+
         return wrapper;
     },
 
@@ -174,5 +191,40 @@ Module.register("MMM-RemoteTempMonitor", {
         }
 
         return sorted;
+    },
+
+    getDevicesPerPage: function() {
+        const parsed = parseInt(this.config.devicesPerPage, 10);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+            return 4;
+        }
+        return parsed;
+    },
+
+    buildPaginationDots: function(totalPages) {
+        const dotsWrapper = document.createElement("div");
+        dotsWrapper.className = "pagination-dots";
+
+        for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+            const dot = document.createElement("span");
+            dot.className = "pagination-dot";
+            if (pageIndex === this.currentPage) {
+                dot.className += " is-active";
+            }
+            dotsWrapper.appendChild(dot);
+        }
+
+        return dotsWrapper;
+    },
+
+    startPageRotation: function() {
+        const interval = this.config.updateInterval || 5000;
+        setInterval(() => {
+            if (!this.loaded || this.totalPages <= 1) {
+                return;
+            }
+            this.currentPage = (this.currentPage + 1) % this.totalPages;
+            this.updateDom();
+        }, interval);
     }
 });

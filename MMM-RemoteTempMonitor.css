@@ -42,6 +42,23 @@
     font-size: 1.1em;
 }
 
+.mmm-remote-temp-monitor .pagination-dots {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.mmm-remote-temp-monitor .pagination-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+.mmm-remote-temp-monitor .pagination-dot.is-active {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
 /* Temperature Color Scale: Green -> Yellow -> Orange -> Red -> Purple */
 
 /* Normal temperature (< 50°C) - Green */
