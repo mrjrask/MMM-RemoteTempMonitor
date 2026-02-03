@@ -5,6 +5,12 @@
 
 .mmm-remote-temp-monitor {
     text-align: left;
+    opacity: 1;
+    transition: opacity var(--page-fade-duration, 1000ms) ease-in-out;
+}
+
+.mmm-remote-temp-monitor.is-fading {
+    opacity: 0;
 }
 
 .mmm-remote-temp-monitor table {
