@@ -16,6 +16,7 @@ Module.register("MMM-RemoteTempMonitor", {
         showCelsius: true,            // Show Celsius temperature
         sortBy: "hostname",           // Sort by: "hostname" or "temperature"
         devicesPerPage: 4,            // Devices to show per page
+        pageTransitionSpeed: 1000,    // Fade transition duration (ms)
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
@@ -45,7 +46,7 @@ Module.register("MMM-RemoteTempMonitor", {
         if (notification === "TEMPERATURE_UPDATE") {
             this.devices = payload;
             this.loaded = true;
-            this.updateDom();
+            this.updateDom(this.config.pageTransitionSpeed);
         }
     },
 
@@ -224,7 +225,7 @@ Module.register("MMM-RemoteTempMonitor", {
                 return;
             }
             this.currentPage = (this.currentPage + 1) % this.totalPages;
-            this.updateDom();
+            this.updateDom(this.config.pageTransitionSpeed);
         }, interval);
     }
 });
