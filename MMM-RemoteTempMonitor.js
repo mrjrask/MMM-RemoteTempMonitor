@@ -45,8 +45,10 @@ Module.register("MMM-RemoteTempMonitor", {
     socketNotificationReceived: function(notification, payload) {
         if (notification === "TEMPERATURE_UPDATE") {
             this.devices = payload;
+            const wasLoaded = this.loaded;
             this.loaded = true;
-            this.updateDom(this.config.pageTransitionSpeed);
+            const fadeSpeed = wasLoaded ? 0 : this.config.pageTransitionSpeed;
+            this.updateDom(fadeSpeed);
         }
     },
 
