@@ -34,6 +34,9 @@ Module.register("MMM-RemoteTempMonitor", {
         this.loaded = false;
         this.currentPage = 0;
         this.totalPages = 1;
+        this.isTransitioning = false;
+        this.pendingFadeIn = false;
+        this.wrapperElement = null;
         this.startPageRotation();
         this.sendSocketNotification("CONFIG", this.config);
     },
@@ -55,6 +58,18 @@ Module.register("MMM-RemoteTempMonitor", {
     getDom: function() {
         const wrapper = document.createElement("div");
         wrapper.className = "mmm-remote-temp-monitor";
+        wrapper.style.setProperty("--page-fade-duration", `${this.config.pageTransitionSpeed}ms`);
+        this.wrapperElement = wrapper;
+
+        if (this.pendingFadeIn) {
+            wrapper.classList.add("is-fading");
+            this.pendingFadeIn = false;
+            setTimeout(() => {
+                if (this.wrapperElement === wrapper) {
+                    wrapper.classList.remove("is-fading");
+                }
+            }, 0);
+        }
 
         // Show loading message if no data yet
         if (!this.loaded) {
@@ -226,8 +241,22 @@ Module.register("MMM-RemoteTempMonitor", {
             if (!this.loaded || this.totalPages <= 1) {
                 return;
             }
-            this.currentPage = (this.currentPage + 1) % this.totalPages;
-            this.updateDom(this.config.pageTransitionSpeed);
+            if (this.isTransitioning) {
+                return;
+            }
+            this.isTransitioning = true;
+            const nextPage = (this.currentPage + 1) % this.totalPages;
+            const wrapper = this.wrapperElement;
+            if (wrapper) {
+                wrapper.classList.add("is-fading");
+            }
+            const fadeDuration = this.config.pageTransitionSpeed;
+            setTimeout(() => {
+                this.currentPage = nextPage;
+                this.pendingFadeIn = true;
+                this.updateDom(0);
+                this.isTransitioning = false;
+            }, fadeDuration);
         }, interval);
     }
 });
