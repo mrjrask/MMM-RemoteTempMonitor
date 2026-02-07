@@ -15,7 +15,7 @@ Module.register("MMM-RemoteTempMonitor", {
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
         sortBy: "hostname",           // Sort by: "hostname" or "temperature"
-        devicesPerPage: 4,            // Devices to show per page
+        devicesPerPage: 6,            // Devices to show per page
         pageTransitionSpeed: 1000,    // Fade transition duration (ms)
 
         // Temperature thresholds for color coding (in Celsius)
@@ -88,7 +88,10 @@ Module.register("MMM-RemoteTempMonitor", {
         // Sort devices
         const sortedDevices = this.sortDevices(this.devices);
         const devicesPerPage = this.getDevicesPerPage();
-        const totalPages = Math.max(1, Math.ceil(sortedDevices.length / devicesPerPage));
+        const shouldPaginate = sortedDevices.length > 6;
+        const totalPages = shouldPaginate
+            ? Math.max(1, Math.ceil(sortedDevices.length / devicesPerPage))
+            : 1;
         this.totalPages = totalPages;
         if (this.currentPage >= totalPages) {
             this.currentPage = 0;
@@ -175,7 +178,7 @@ Module.register("MMM-RemoteTempMonitor", {
         table.appendChild(body);
         wrapper.appendChild(table);
 
-        if (totalPages > 1) {
+        if (shouldPaginate) {
             wrapper.appendChild(this.buildPaginationDots(totalPages));
         }
 
@@ -214,7 +217,7 @@ Module.register("MMM-RemoteTempMonitor", {
     getDevicesPerPage: function() {
         const parsed = parseInt(this.config.devicesPerPage, 10);
         if (Number.isNaN(parsed) || parsed <= 0) {
-            return 4;
+            return 6;
         }
         return parsed;
     },
