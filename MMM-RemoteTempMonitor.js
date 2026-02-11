@@ -14,7 +14,7 @@ Module.register("MMM-RemoteTempMonitor", {
         cleanupInterval: 60000,       // How often to check for stale devices (ms)
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
-        sortBy: "hostname",           // Sort by: "hostname" or "temperature"
+        sortBy: "temperature",        // Sort by: "hostname" or "temperature"
         devicesPerPage: 6,            // Devices to show per page
         pageTransitionSpeed: 1000,    // Fade transition duration (ms)
 

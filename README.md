@@ -97,7 +97,7 @@ Here are the configuration options for the MagicMirror module:
 | `cleanupInterval` | How often to check for stale devices (ms) | `60000` |
 | `showFahrenheit` | Show Fahrenheit temperature | `true` |
 | `showCelsius` | Show Celsius temperature | `true` |
-| `sortBy` | Sort devices by "hostname" or "temperature" | `"hostname"` |
+| `sortBy` | Sort devices by "hostname" or "temperature" | `"temperature"` |
 | `devicesPerPage` | Number of devices to show per page | `6` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
