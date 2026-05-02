@@ -110,12 +110,15 @@ module.exports = NodeHelper.create({
                     return;
                 }
 
+                const totalMemoryGb = os.totalmem() / (1024 ** 3);
+                const localModel = `${os.type()} ${os.release()} (${os.arch()})`;
+
                 this.devices.__local_machine__ = {
-                    hostname: `${os.hostname()} (local)`,
+                    hostname: `${os.hostname()} (host)`,
                     celsius,
                     fahrenheit: (celsius * 9 / 5) + 32,
-                    pi_model: null,
-                    pi_ram: null,
+                    pi_model: localModel,
+                    pi_ram: `${totalMemoryGb.toFixed(1)} GB RAM`,
                     lastSeen: Date.now(),
                     ip: "127.0.0.1"
                 };
