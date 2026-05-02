@@ -5,6 +5,9 @@
 
 const NodeHelper = require("node_helper");
 const dgram = require("dgram");
+const os = require("os");
+const fs = require("fs");
+const { execFile } = require("child_process");
 
 module.exports = NodeHelper.create({
     start: function() {
@@ -12,6 +15,7 @@ module.exports = NodeHelper.create({
         this.devices = {};
         this.server = null;
         this.config = null;
+        this.localMonitorTimer = null;
         console.log("Starting node_helper for: " + this.name);
     },
 
@@ -56,6 +60,7 @@ module.exports = NodeHelper.create({
 
             // Set up periodic cleanup of stale devices
             this.startCleanupTimer();
+            this.startLocalMachineMonitor();
 
         } catch (err) {
             console.error(`[MMM-RemoteTempMonitor] Failed to start UDP listener: ${err}`);
@@ -96,6 +101,62 @@ module.exports = NodeHelper.create({
         return Object.keys(this.devices).map(id => this.devices[id]);
     },
 
+    startLocalMachineMonitor: function() {
+        const interval = this.config.updateInterval || 5000;
+
+        const publishLocalTemperature = () => {
+            this.readLocalCpuTemp((err, celsius) => {
+                if (err || Number.isNaN(celsius)) {
+                    return;
+                }
+
+                this.devices.__local_machine__ = {
+                    hostname: `${os.hostname()} (local)`,
+                    celsius,
+                    fahrenheit: (celsius * 9 / 5) + 32,
+                    pi_model: null,
+                    pi_ram: null,
+                    lastSeen: Date.now(),
+                    ip: "127.0.0.1"
+                };
+
+                this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
+            });
+        };
+
+        publishLocalTemperature();
+        this.localMonitorTimer = setInterval(publishLocalTemperature, interval);
+    },
+
+    readLocalCpuTemp: function(callback) {
+        const linuxPath = "/sys/class/thermal/thermal_zone0/temp";
+
+        fs.readFile(linuxPath, "utf8", (err, raw) => {
+            if (!err) {
+                const millidegrees = parseInt(raw.trim(), 10);
+                if (!Number.isNaN(millidegrees)) {
+                    callback(null, millidegrees / 1000);
+                    return;
+                }
+            }
+
+            execFile("python3", ["-c", "import psutil; print(psutil.sensors_temperatures())"], { timeout: 1500 }, (pyErr, stdout) => {
+                if (pyErr || !stdout) {
+                    callback(new Error("Could not read local CPU temperature"));
+                    return;
+                }
+
+                const match = stdout.match(/current=([0-9]+(?:\.[0-9]+)?)/);
+                if (!match) {
+                    callback(new Error("Could not parse local CPU temperature"));
+                    return;
+                }
+
+                callback(null, parseFloat(match[1]));
+            });
+        });
+    },
+
     startCleanupTimer: function() {
         const cleanupInterval = this.config.cleanupInterval || 60000; // 1 minute default
         const maxAge = this.config.maxDeviceAge || 30000; // 30 seconds default
@@ -119,6 +180,10 @@ module.exports = NodeHelper.create({
     },
 
     stop: function() {
+        if (this.localMonitorTimer) {
+            clearInterval(this.localMonitorTimer);
+            this.localMonitorTimer = null;
+        }
         if (this.server) {
             this.server.close();
             console.log("[MMM-RemoteTempMonitor] UDP listener stopped");
