@@ -101,6 +101,27 @@ module.exports = NodeHelper.create({
         return Object.keys(this.devices).map(id => this.devices[id]);
     },
 
+    getLocalHostHardwareInfo: function() {
+        let modelNumber = null;
+
+        try {
+            const modelText = fs.readFileSync("/proc/device-tree/model", "utf8").replace(/\u0000/g, "").trim();
+            const modelMatch = modelText.match(/Raspberry Pi\s+(\d+)/i);
+            if (modelMatch) {
+                modelNumber = modelMatch[1];
+            }
+        } catch (err) {
+            // Ignore: this file won't exist on non-Raspberry Pi hosts.
+        }
+
+        const totalMemoryGb = Math.round(os.totalmem() / (1024 ** 3));
+
+        return {
+            model: modelNumber,
+            ram: `${totalMemoryGb}GB`
+        };
+    },
+
     startLocalMachineMonitor: function() {
         const interval = this.config.updateInterval || 5000;
 
@@ -110,12 +131,14 @@ module.exports = NodeHelper.create({
                     return;
                 }
 
+                const hostHardware = this.getLocalHostHardwareInfo();
+
                 this.devices.__local_machine__ = {
-                    hostname: `${os.hostname()} (local)`,
+                    hostname: `${os.hostname()} (host)`,
                     celsius,
                     fahrenheit: (celsius * 9 / 5) + 32,
-                    pi_model: null,
-                    pi_ram: null,
+                    pi_model: hostHardware.model,
+                    pi_ram: hostHardware.ram,
                     lastSeen: Date.now(),
                     ip: "127.0.0.1"
                 };
