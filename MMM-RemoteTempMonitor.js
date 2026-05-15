@@ -15,7 +15,7 @@ Module.register("MMM-RemoteTempMonitor", {
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
         sortBy: "temperature",        // Sort by: "hostname" or "temperature"
-        devicesPerPage: 8,            // Devices to show per page
+        devicesPerPage: 9,            // Devices to show per page
         pageTransitionSpeed: 1000,    // Fade transition duration (ms)
 
         // Temperature thresholds for color coding (in Celsius)

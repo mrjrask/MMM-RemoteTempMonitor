@@ -98,7 +98,7 @@ Here are the configuration options for the MagicMirror module:
 | `showFahrenheit` | Show Fahrenheit temperature | `true` |
 | `showCelsius` | Show Celsius temperature | `true` |
 | `sortBy` | Sort devices by "hostname" or "temperature" | `"temperature"` |
-| `devicesPerPage` | Number of devices to show per page | `8` |
+| `devicesPerPage` | Number of devices to show per page | `9` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
 ### Temperature Thresholds
@@ -126,7 +126,7 @@ tempThresholds: {
         showFahrenheit: true,
         showCelsius: true,
         sortBy: "temperature",  // Show hottest first
-        devicesPerPage: 8,
+        devicesPerPage: 9,
         tempThresholds: {
             normal: 45,
             warm: 55,
