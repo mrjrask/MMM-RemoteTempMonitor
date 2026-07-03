@@ -163,6 +163,32 @@ tempThresholds: {
 }
 ```
 
+
+## CLI Monitor
+
+You can also watch the same UDP temperature broadcasts directly from a terminal without starting MagicMirror:
+
+```bash
+node bin/remote-temp-monitor-cli.js
+```
+
+The CLI listens on the same UDP port as the MagicMirror module, discovers broadcasting devices, sorts them with the same default hottest-first behavior, and prints a table with the device name, Celsius and Fahrenheit readings, thermal status, last-seen age, and source IP.
+
+Useful options:
+
+```bash
+# Listen on a custom UDP port
+node bin/remote-temp-monitor-cli.js --port 9876
+
+# Sort alphabetically by hostname
+node bin/remote-temp-monitor-cli.js --sort hostname
+
+# Show only Celsius and keep previous terminal output visible
+node bin/remote-temp-monitor-cli.js --celsius-only --no-clear
+```
+
+Run `node bin/remote-temp-monitor-cli.js --help` for the full option list.
+
 ## Remote Service Management
 
 On Raspberry Pi devices running the broadcaster service:
