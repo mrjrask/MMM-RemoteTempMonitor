@@ -8,6 +8,7 @@ const dgram = require("dgram");
 const os = require("os");
 const fs = require("fs");
 const { execFile } = require("child_process");
+const crypto = require("crypto");
 
 module.exports = NodeHelper.create({
     start: function() {
@@ -60,7 +61,9 @@ module.exports = NodeHelper.create({
 
             // Set up periodic cleanup of stale devices
             this.startCleanupTimer();
-            this.startLocalMachineMonitor();
+            if (this.config.monitorLocalHost) {
+                this.startLocalMachineMonitor();
+            }
 
         } catch (err) {
             console.error(`[MMM-RemoteTempMonitor] Failed to start UDP listener: ${err}`);
@@ -69,31 +72,85 @@ module.exports = NodeHelper.create({
 
     handleMessage: function(msg, rinfo) {
         try {
-            const data = JSON.parse(msg.toString());
+            const rawMessage = msg.toString();
+            const data = JSON.parse(rawMessage);
+            const validated = this.validateTemperatureMessage(data, rawMessage);
 
-            // Validate message format
-            if (data.type === "temperature" && data.hostname && data.temperature) {
-                const deviceId = data.hostname;
-
-                // Update device information
-                this.devices[deviceId] = {
-                    hostname: data.hostname,
-                    celsius: data.temperature.celsius,
-                    fahrenheit: data.temperature.fahrenheit,
-                    pi_model: data.pi_model || null,
-                    pi_ram: data.pi_ram || null,
-                    lastSeen: Date.now(),
-                    ip: rinfo.address
-                };
-
-                // Send update to frontend
-                this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
-
-                console.log(`[MMM-RemoteTempMonitor] Received from ${data.hostname}: ${data.temperature.celsius}°C`);
+            if (!validated.valid) {
+                console.warn(`[MMM-RemoteTempMonitor] Ignored invalid packet from ${rinfo.address}: ${validated.reason}`);
+                return;
             }
+
+            const deviceId = data.device_id || `${rinfo.address}:${data.hostname}`;
+
+            // Update device information
+            this.devices[deviceId] = {
+                deviceId,
+                hostname: data.hostname,
+                celsius: validated.celsius,
+                fahrenheit: validated.fahrenheit,
+                pi_model: data.pi_model || null,
+                pi_ram: data.pi_ram || null,
+                platform: data.platform || null,
+                cpu_arch: data.cpu_arch || null,
+                lastSeen: Date.now(),
+                ip: rinfo.address
+            };
+
+            // Send update to frontend
+            this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
+
+            console.log(`[MMM-RemoteTempMonitor] Received from ${data.hostname} (${rinfo.address}): ${validated.celsius}°C`);
         } catch (err) {
             console.error(`[MMM-RemoteTempMonitor] Error parsing message: ${err.message}`);
         }
+    },
+
+    validateTemperatureMessage: function(data, rawMessage) {
+        if (data.type !== "temperature" || !data.hostname || !data.temperature) {
+            return { valid: false, reason: "missing required temperature fields" };
+        }
+
+        if (!this.isMessageAuthenticated(data, rawMessage)) {
+            return { valid: false, reason: "authentication failed" };
+        }
+
+        const celsius = Number(data.temperature.celsius);
+        const fahrenheit = Number(data.temperature.fahrenheit);
+        if (!Number.isFinite(celsius) || !Number.isFinite(fahrenheit)) {
+            return { valid: false, reason: "temperature values must be finite numbers" };
+        }
+        if (celsius < -50 || celsius > 150) {
+            return { valid: false, reason: "celsius temperature outside expected range" };
+        }
+
+        return { valid: true, celsius, fahrenheit };
+    },
+
+    isMessageAuthenticated: function(data, rawMessage) {
+        const secret = this.config.sharedSecret;
+        if (!secret) {
+            return true;
+        }
+
+        if (data.auth_token) {
+            return this.timingSafeStringEqual(data.auth_token, secret);
+        }
+
+        if (!data.hmac) {
+            return false;
+        }
+
+        const unsigned = { ...data };
+        delete unsigned.hmac;
+        const expected = crypto.createHmac("sha256", secret).update(JSON.stringify(unsigned)).digest("hex");
+        return this.timingSafeStringEqual(data.hmac, expected);
+    },
+
+    timingSafeStringEqual: function(actual, expected) {
+        const actualBuffer = Buffer.from(String(actual));
+        const expectedBuffer = Buffer.from(String(expected));
+        return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
     },
 
     getDeviceList: function() {

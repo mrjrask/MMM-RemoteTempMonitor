@@ -99,7 +99,34 @@ Here are the configuration options for the MagicMirror module:
 | `showCelsius` | Show Celsius temperature | `true` |
 | `sortBy` | Sort devices by "hostname" or "temperature" | `"temperature"` |
 | `devicesPerPage` | Number of devices to show per page | `9` |
+| `monitorLocalHost` | Include MagicMirror host temperature when available | `false` |
+| `showLastSeen` | Show the age of each device update | `false` |
+| `showIpAddress` | Show each sender source IP address | `false` |
+| `sharedSecret` | Optional shared secret required on incoming packets | `""` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
+
+
+### Optional Packet Authentication
+
+For trusted LANs, no authentication is required. To reject packets from senders that do not know a shared secret, configure the same value on MagicMirror and each broadcaster:
+
+```javascript
+config: {
+    sharedSecret: "change-me"
+}
+```
+
+On broadcaster hosts, set:
+
+```bash
+TEMP_MONITOR_SHARED_SECRET=change-me
+```
+
+The CLI can use the same secret through `TEMP_MONITOR_SHARED_SECRET` or `--shared-secret`.
+
+### Local Host Monitoring
+
+Set `monitorLocalHost: true` to include the MagicMirror host itself when a local CPU temperature source is available. This is disabled by default so installations that only want remote devices do not need local temperature dependencies.
 
 ### Temperature Thresholds
 
@@ -187,7 +214,7 @@ node bin/remote-temp-monitor-cli.js --sort hostname
 node bin/remote-temp-monitor-cli.js --celsius-only --no-clear
 ```
 
-Run `node bin/remote-temp-monitor-cli.js --help` for the full option list.
+Run `node bin/remote-temp-monitor-cli.js --help` for the full option list. Use `--shared-secret` or `TEMP_MONITOR_SHARED_SECRET` when packet authentication is enabled.
 
 ## Remote Service Management
 
@@ -339,3 +366,13 @@ If you encounter issues or have questions:
 - Color-coded temperature display
 - Support for multiple Raspberry Pi devices
 - Automatic device discovery and cleanup
+
+
+## Development
+
+Run the lightweight JavaScript and Python unit tests before submitting changes:
+
+```bash
+npm test
+python3 -m unittest discover -s tests
+```

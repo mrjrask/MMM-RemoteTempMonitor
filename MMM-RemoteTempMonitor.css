@@ -126,3 +126,14 @@
         font-size: 1em;
     }
 }
+
+.mmm-remote-temp-monitor .metadata-header {
+    text-align: left;
+    min-width: 80px;
+}
+
+.mmm-remote-temp-monitor .metadata {
+    color: #aaa;
+    font-size: 0.85em;
+    white-space: nowrap;
+}

@@ -36,3 +36,18 @@ sudo launchctl unload /Library/LaunchDaemons/com.remote-temp-monitor.plist
 sudo rm /Library/LaunchDaemons/com.remote-temp-monitor.plist
 sudo rm -rf /usr/local/remote-temp-monitor
 ```
+
+
+## Optional Targets and Authentication
+
+By default, the broadcaster sends UDP packets to the local broadcast address. To send updates to specific MagicMirror hosts or directed broadcast addresses, set a comma-separated target list before starting the service:
+
+```bash
+TEMP_MONITOR_TARGETS=10.0.0.10,192.168.1.255
+```
+
+To require authenticated packets, set the same shared secret here and in the MagicMirror module config:
+
+```bash
+TEMP_MONITOR_SHARED_SECRET=change-me
+```

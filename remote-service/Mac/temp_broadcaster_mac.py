@@ -6,6 +6,7 @@ Broadcasts CPU temperature over UDP for MagicMirror module
 
 import json
 import logging
+import os
 import platform
 import socket
 import subprocess
@@ -32,9 +33,23 @@ class TemperatureBroadcaster:
         self.port = port
         self.interval = interval
         self.hostname = platform.node()
+        self.shared_secret = os.getenv("TEMP_MONITOR_SHARED_SECRET", "").strip()
         self.sock = None
+        self.targets = self._get_targets()
         self.cpu_arch = platform.machine()
         self._setup_socket()
+
+    def _get_targets(self):
+        """Determine target addresses for temperature updates."""
+        targets_raw = os.getenv("TEMP_MONITOR_TARGETS", "").strip()
+        if not targets_raw:
+            return ["<broadcast>"]
+
+        targets = [target.strip() for target in targets_raw.split(",") if target.strip()]
+        if not targets:
+            return ["<broadcast>"]
+
+        return targets
 
     def _setup_socket(self):
         """Setup UDP broadcast socket"""
@@ -107,16 +122,22 @@ class TemperatureBroadcaster:
             "timestamp": int(time.time()),
         }
 
+        if self.shared_secret:
+            message["auth_token"] = self.shared_secret
+
         return json.dumps(message)
 
     def broadcast(self, message):
-        """Send message via UDP broadcast"""
-        try:
-            self.sock.sendto(message.encode('utf-8'), ("<broadcast>", self.port))
-            return True
-        except Exception as e:
-            logger.error(f"Broadcast failed: {e}")
-            return False
+        """Send message via UDP broadcast or unicast targets"""
+        success = True
+        for target in self.targets:
+            try:
+                self.sock.sendto(message.encode('utf-8'), (target, self.port))
+                logger.debug(f"Broadcasted to {target}: {message}")
+            except Exception as e:
+                logger.error(f"Broadcast to {target} failed: {e}")
+                success = False
+        return success
 
     def run(self):
         """Main loop - read temperature and broadcast"""

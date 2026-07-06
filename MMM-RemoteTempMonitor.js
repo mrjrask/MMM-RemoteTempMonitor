@@ -17,6 +17,10 @@ Module.register("MMM-RemoteTempMonitor", {
         sortBy: "temperature",        // Sort by: "hostname" or "temperature"
         devicesPerPage: 9,            // Devices to show per page
         pageTransitionSpeed: 1000,    // Fade transition duration (ms)
+        monitorLocalHost: false,       // Include MagicMirror host temperature when available
+        showLastSeen: false,          // Show last update age
+        showIpAddress: false,         // Show source IP address
+        sharedSecret: "",             // Optional shared secret for authenticated UDP packets
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
@@ -73,14 +77,14 @@ Module.register("MMM-RemoteTempMonitor", {
 
         // Show loading message if no data yet
         if (!this.loaded) {
-            wrapper.innerHTML = "Loading temperature monitors...";
+            wrapper.textContent = "Loading temperature monitors...";
             wrapper.className += " dimmed light small";
             return wrapper;
         }
 
         // Show message if no devices found
         if (this.devices.length === 0) {
-            wrapper.innerHTML = "No temperature monitors found";
+            wrapper.textContent = "No temperature monitors found";
             wrapper.className += " dimmed light small";
             return wrapper;
         }
@@ -109,22 +113,36 @@ Module.register("MMM-RemoteTempMonitor", {
         const headerRow = document.createElement("tr");
 
         const hostHeader = document.createElement("th");
-        hostHeader.innerHTML = "Device";
+        hostHeader.textContent = "Device";
         hostHeader.className = "hostname-header";
         headerRow.appendChild(hostHeader);
 
         if (this.config.showCelsius) {
             const celsiusHeader = document.createElement("th");
-            celsiusHeader.innerHTML = "°C";
+            celsiusHeader.textContent = "°C";
             celsiusHeader.className = "temp-header";
             headerRow.appendChild(celsiusHeader);
         }
 
         if (this.config.showFahrenheit) {
             const fahrenheitHeader = document.createElement("th");
-            fahrenheitHeader.innerHTML = "°F";
+            fahrenheitHeader.textContent = "°F";
             fahrenheitHeader.className = "temp-header";
             headerRow.appendChild(fahrenheitHeader);
+        }
+
+        if (this.config.showLastSeen) {
+            const lastSeenHeader = document.createElement("th");
+            lastSeenHeader.textContent = "Last seen";
+            lastSeenHeader.className = "metadata-header";
+            headerRow.appendChild(lastSeenHeader);
+        }
+
+        if (this.config.showIpAddress) {
+            const ipHeader = document.createElement("th");
+            ipHeader.textContent = "IP";
+            ipHeader.className = "metadata-header";
+            headerRow.appendChild(ipHeader);
         }
 
         header.appendChild(headerRow);
@@ -149,7 +167,7 @@ Module.register("MMM-RemoteTempMonitor", {
                 displayName += ` (${device.pi_ram})`;
             }
 
-            hostnameCell.innerHTML = displayName;
+            hostnameCell.textContent = displayName;
             hostnameCell.className = "hostname";
             row.appendChild(hostnameCell);
 
@@ -159,7 +177,7 @@ Module.register("MMM-RemoteTempMonitor", {
             // Celsius column
             if (this.config.showCelsius) {
                 const celsiusCell = document.createElement("td");
-                celsiusCell.innerHTML = device.celsius.toFixed(1);
+                celsiusCell.textContent = device.celsius.toFixed(1);
                 celsiusCell.className = "temperature " + colorClass;
                 row.appendChild(celsiusCell);
             }
@@ -167,9 +185,23 @@ Module.register("MMM-RemoteTempMonitor", {
             // Fahrenheit column
             if (this.config.showFahrenheit) {
                 const fahrenheitCell = document.createElement("td");
-                fahrenheitCell.innerHTML = device.fahrenheit.toFixed(1);
+                fahrenheitCell.textContent = device.fahrenheit.toFixed(1);
                 fahrenheitCell.className = "temperature " + colorClass;
                 row.appendChild(fahrenheitCell);
+            }
+
+            if (this.config.showLastSeen) {
+                const lastSeenCell = document.createElement("td");
+                lastSeenCell.textContent = this.formatLastSeen(device.lastSeen);
+                lastSeenCell.className = "metadata last-seen";
+                row.appendChild(lastSeenCell);
+            }
+
+            if (this.config.showIpAddress) {
+                const ipCell = document.createElement("td");
+                ipCell.textContent = device.ip || "unknown";
+                ipCell.className = "metadata ip-address";
+                row.appendChild(ipCell);
             }
 
             body.appendChild(row);
@@ -183,6 +215,20 @@ Module.register("MMM-RemoteTempMonitor", {
         }
 
         return wrapper;
+    },
+
+    formatLastSeen: function(lastSeen) {
+        if (!lastSeen) {
+            return "unknown";
+        }
+
+        const ageSeconds = Math.max(0, Math.round((Date.now() - lastSeen) / 1000));
+        if (ageSeconds < 60) {
+            return `${ageSeconds}s ago`;
+        }
+
+        const ageMinutes = Math.round(ageSeconds / 60);
+        return `${ageMinutes}m ago`;
     },
 
     getTempColorClass: function(celsius) {
