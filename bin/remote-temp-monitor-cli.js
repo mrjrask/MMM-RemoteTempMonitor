@@ -5,6 +5,7 @@
 
 const dgram = require("dgram");
 const os = require("os");
+const crypto = require("crypto");
 
 const DEFAULTS = {
     port: 9876,
@@ -15,6 +16,7 @@ const DEFAULTS = {
     sortBy: "temperature",
     devicesPerPage: 9,
     clearScreen: true,
+    sharedSecret: process.env.TEMP_MONITOR_SHARED_SECRET || "",
     tempThresholds: {
         normal: 50,
         warm: 60,
@@ -70,6 +72,13 @@ function parseArgs(argv) {
             case "--no-clear":
                 config.clearScreen = false;
                 break;
+            case "--shared-secret":
+                if (!next) {
+                    throw new Error("--shared-secret requires a value");
+                }
+                config.sharedSecret = next;
+                index += 1;
+                break;
             default:
                 throw new Error(`Unknown option: ${arg}`);
         }
@@ -102,6 +111,7 @@ Options:
       --celsius-only       Show only Celsius values
       --fahrenheit-only    Show only Fahrenheit values
       --no-clear           Do not clear the terminal between refreshes
+      --shared-secret <s>  Require matching auth token/HMAC (or TEMP_MONITOR_SHARED_SECRET)
   -h, --help               Show this help message`);
 }
 
@@ -203,25 +213,70 @@ function render(devicesById, config, status) {
     });
 }
 
-function handleMessage(msg, rinfo, devicesById) {
-    const data = JSON.parse(msg.toString());
+function timingSafeStringEqual(actual, expected) {
+    const actualBuffer = Buffer.from(String(actual));
+    const expectedBuffer = Buffer.from(String(expected));
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
 
-    if (data.type !== "temperature" || !data.hostname || !data.temperature) {
+function isMessageAuthenticated(data, secret) {
+    if (!secret) {
+        return true;
+    }
+
+    if (data.auth_token) {
+        return timingSafeStringEqual(data.auth_token, secret);
+    }
+
+    if (!data.hmac) {
         return false;
+    }
+
+    const unsigned = { ...data };
+    delete unsigned.hmac;
+    const expected = crypto.createHmac("sha256", secret).update(JSON.stringify(unsigned)).digest("hex");
+    return timingSafeStringEqual(data.hmac, expected);
+}
+
+function validateTemperatureMessage(data, secret = "") {
+    if (data.type !== "temperature" || !data.hostname || !data.temperature) {
+        return { valid: false, reason: "missing required temperature fields" };
+    }
+
+    if (!isMessageAuthenticated(data, secret)) {
+        return { valid: false, reason: "authentication failed" };
     }
 
     const celsius = Number(data.temperature.celsius);
     const fahrenheit = Number(data.temperature.fahrenheit);
-    if (Number.isNaN(celsius) || Number.isNaN(fahrenheit)) {
+    if (!Number.isFinite(celsius) || !Number.isFinite(fahrenheit)) {
+        return { valid: false, reason: "temperature values must be finite numbers" };
+    }
+    if (celsius < -50 || celsius > 150) {
+        return { valid: false, reason: "celsius temperature outside expected range" };
+    }
+
+    return { valid: true, celsius, fahrenheit };
+}
+
+function handleMessage(msg, rinfo, devicesById, config = DEFAULTS) {
+    const data = JSON.parse(msg.toString());
+    const validated = validateTemperatureMessage(data, config.sharedSecret || "");
+
+    if (!validated.valid) {
         return false;
     }
 
-    devicesById[data.hostname] = {
+    const deviceId = data.device_id || `${rinfo.address}:${data.hostname}`;
+    devicesById[deviceId] = {
+        deviceId,
         hostname: data.hostname,
-        celsius,
-        fahrenheit,
+        celsius: validated.celsius,
+        fahrenheit: validated.fahrenheit,
         pi_model: data.pi_model || null,
         pi_ram: data.pi_ram || null,
+        platform: data.platform || null,
+        cpu_arch: data.cpu_arch || null,
         lastSeen: Date.now(),
         ip: rinfo.address
     };
@@ -251,7 +306,7 @@ function main() {
 
     server.on("message", (msg, rinfo) => {
         try {
-            if (handleMessage(msg, rinfo, devicesById)) {
+            if (handleMessage(msg, rinfo, devicesById, config)) {
                 status = `Last update received from ${rinfo.address}`;
                 render(devicesById, config, status);
             }
@@ -286,3 +341,13 @@ function main() {
 if (require.main === module) {
     main();
 }
+
+module.exports = {
+    DEFAULTS,
+    parseArgs,
+    getTempLabel,
+    sortDevices,
+    validateTemperatureMessage,
+    handleMessage,
+    isMessageAuthenticated
+};

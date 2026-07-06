@@ -36,6 +36,7 @@ class TemperatureBroadcaster:
         self.port = port
         self.interval = interval
         self.hostname = platform.node()
+        self.shared_secret = os.getenv("TEMP_MONITOR_SHARED_SECRET", "").strip()
         self.sock = None
         self.targets = self._get_targets()
         self.pi_model = self.get_pi_model()
@@ -200,6 +201,9 @@ class TemperatureBroadcaster:
             "pi_ram": self.pi_ram,
             "timestamp": int(time.time())
         }
+
+        if self.shared_secret:
+            message["auth_token"] = self.shared_secret
 
         return json.dumps(message)
 
