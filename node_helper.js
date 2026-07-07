@@ -133,10 +133,6 @@ module.exports = NodeHelper.create({
             return true;
         }
 
-        if (data.auth_token) {
-            return this.timingSafeStringEqual(data.auth_token, secret);
-        }
-
         if (!data.hmac) {
             return false;
         }

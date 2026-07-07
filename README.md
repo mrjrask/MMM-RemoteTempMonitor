@@ -102,13 +102,13 @@ Here are the configuration options for the MagicMirror module:
 | `monitorLocalHost` | Include MagicMirror host temperature when available | `false` |
 | `showLastSeen` | Show the age of each device update | `false` |
 | `showIpAddress` | Show each sender source IP address | `false` |
-| `sharedSecret` | Optional shared secret required on incoming packets | `""` |
+| `sharedSecret` | Optional shared secret used to verify HMAC signatures on incoming packets | `""` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
 
 ### Optional Packet Authentication
 
-For trusted LANs, no authentication is required. To reject packets from senders that do not know a shared secret, configure the same value on MagicMirror and each broadcaster:
+For trusted LANs, no authentication is required. To reject packets from senders that do not know a shared secret, configure the same value on MagicMirror and each broadcaster. Broadcasters sign each packet with HMAC-SHA256 rather than sending the secret itself:
 
 ```javascript
 config: {

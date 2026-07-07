@@ -111,7 +111,7 @@ Options:
       --celsius-only       Show only Celsius values
       --fahrenheit-only    Show only Fahrenheit values
       --no-clear           Do not clear the terminal between refreshes
-      --shared-secret <s>  Require matching auth token/HMAC (or TEMP_MONITOR_SHARED_SECRET)
+      --shared-secret <s>  Require matching HMAC signature (or TEMP_MONITOR_SHARED_SECRET)
   -h, --help               Show this help message`);
 }
 
@@ -222,10 +222,6 @@ function timingSafeStringEqual(actual, expected) {
 function isMessageAuthenticated(data, secret) {
     if (!secret) {
         return true;
-    }
-
-    if (data.auth_token) {
-        return timingSafeStringEqual(data.auth_token, secret);
     }
 
     if (!data.hmac) {
