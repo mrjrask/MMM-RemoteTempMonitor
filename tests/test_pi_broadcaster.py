@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -25,11 +28,20 @@ class PiBroadcasterParsingTests(unittest.TestCase):
         self.assertEqual(self.broadcaster._map_ram_to_marketing(950), '1GB')
         self.assertEqual(self.broadcaster._map_ram_to_marketing(7900), '8GB')
 
-    def test_create_message_includes_auth_token_when_configured(self):
+    def test_create_message_includes_hmac_when_configured(self):
         self.broadcaster.shared_secret = 'secret'
         message = self.broadcaster.create_message(42.5)
-        self.assertIn('"auth_token": "secret"', message)
-        self.assertIn('"celsius": 42.5', message)
+        data = json.loads(message)
+        signature = data.pop('hmac')
+        expected = hmac.new(
+            b'secret',
+            json.dumps(data, separators=(',', ':')).encode('utf-8'),
+            hashlib.sha256,
+        ).hexdigest()
+
+        self.assertEqual(signature, expected)
+        self.assertNotIn('auth_token', data)
+        self.assertEqual(data['temperature']['celsius'], 42.5)
 
 
 if __name__ == '__main__':

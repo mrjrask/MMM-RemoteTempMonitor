@@ -33,11 +33,10 @@ test('handleMessage validates numbers and keys duplicate hostnames by address', 
   assert.equal(devices['192.0.2.10:pi'].celsius, 42.5);
 });
 
-test('validateTemperatureMessage rejects out-of-range and authenticates token/HMAC', () => {
+test('validateTemperatureMessage rejects out-of-range and requires HMAC', () => {
   const base = { type: 'temperature', hostname: 'pi', temperature: { celsius: 42, fahrenheit: 107.6 } };
   assert.equal(cli.validateTemperatureMessage({ ...base, temperature: { celsius: 200, fahrenheit: 392 } }).valid, false);
-  assert.equal(cli.validateTemperatureMessage({ ...base, auth_token: 'secret' }, 'secret').valid, true);
-  assert.equal(cli.validateTemperatureMessage({ ...base, auth_token: 'wrong' }, 'secret').valid, false);
+  assert.equal(cli.validateTemperatureMessage({ ...base, auth_token: 'secret' }, 'secret').valid, false);
 
   const unsigned = { ...base };
   const hmac = crypto.createHmac('sha256', 'secret').update(JSON.stringify(unsigned)).digest('hex');

@@ -46,7 +46,7 @@ By default, the broadcaster sends UDP packets to the local broadcast address. To
 TEMP_MONITOR_TARGETS=10.0.0.10,192.168.1.255
 ```
 
-To require authenticated packets, set the same shared secret here and in the MagicMirror module config:
+To require authenticated packets, set the same shared secret here and in the MagicMirror module config. Broadcasters sign each packet with HMAC-SHA256 rather than sending the secret itself:
 
 ```bash
 TEMP_MONITOR_SHARED_SECRET=change-me

@@ -4,6 +4,8 @@ Remote Temperature Monitor - macOS Broadcaster Service
 Broadcasts CPU temperature over UDP for MagicMirror module
 """
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -123,9 +125,18 @@ class TemperatureBroadcaster:
         }
 
         if self.shared_secret:
-            message["auth_token"] = self.shared_secret
+            message["hmac"] = self._sign_message(message)
 
         return json.dumps(message)
+
+    def _sign_message(self, message):
+        """Create an HMAC signature for a temperature message."""
+        payload = json.dumps(message, separators=(",", ":"))
+        return hmac.new(
+            self.shared_secret.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
 
     def broadcast(self, message):
         """Send message via UDP broadcast or unicast targets"""
