@@ -36,6 +36,11 @@ cd MMM-RemoteTempMonitor/remote-service/Pi
 sudo ./install.sh
 ```
 
+The installer is a Python 3 script kept at `install.sh` for compatibility, so this also works:
+```bash
+sudo python3 install.sh
+```
+
 The installation script will:
 - Copy the broadcaster script to `/opt/remote-temp-monitor/`
 - Install and enable the systemd service
