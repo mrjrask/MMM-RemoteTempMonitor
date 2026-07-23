@@ -212,6 +212,7 @@ module.exports = NodeHelper.create({
                 const hostHardware = this.getLocalHostHardwareInfo();
 
                 this.devices.__local_machine__ = {
+                    deviceId: "__local_machine__",
                     hostname: `${os.hostname()} (host)`,
                     celsius,
                     fahrenheit: (celsius * 9 / 5) + 32,
