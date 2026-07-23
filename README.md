@@ -103,8 +103,44 @@ Here are the configuration options for the MagicMirror module:
 | `showLastSeen` | Show the age of each device update | `false` |
 | `showIpAddress` | Show each sender source IP address | `false` |
 | `sharedSecret` | Optional shared secret used to verify HMAC signatures on incoming packets | `""` |
+| `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot | `"/temps"` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
+
+
+### HTTP Data Endpoint
+
+The MagicMirror node helper exposes the latest received data as JSON at `http://<Pi IP Address>:<MagicMirror port>/temps` by default. If your MagicMirror server is running on the default port, browse to:
+
+```text
+http://<Pi IP Address>:8080/temps
+```
+
+The response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values:
+
+```json
+{
+  "type": "temperature_snapshot",
+  "count": 1,
+  "updatedAt": "2026-07-23T12:00:00.000Z",
+  "devices": [
+    {
+      "deviceId": "192.168.1.42:raspberrypi",
+      "hostname": "raspberrypi",
+      "celsius": 45.2,
+      "fahrenheit": 113.4,
+      "pi_model": "4",
+      "pi_ram": "4GB",
+      "platform": null,
+      "cpu_arch": null,
+      "lastSeen": 1784808000000,
+      "ip": "192.168.1.42"
+    }
+  ]
+}
+```
+
+Set `tempsEndpointPath` if you need to publish the snapshot at a different route.
 
 ### Optional Packet Authentication
 

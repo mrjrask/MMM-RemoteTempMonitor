@@ -21,6 +21,7 @@ Module.register("MMM-RemoteTempMonitor", {
         showLastSeen: false,          // Show last update age
         showIpAddress: false,         // Show source IP address
         sharedSecret: "",             // Optional shared secret for authenticated UDP packets
+        tempsEndpointPath: "/temps",   // HTTP endpoint exposing the latest received temperature data
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
