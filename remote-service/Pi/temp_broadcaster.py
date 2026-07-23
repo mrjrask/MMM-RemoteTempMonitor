@@ -21,7 +21,7 @@ from pathlib import Path
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 5  # seconds
-HTTP_PORT = int(os.getenv("TEMP_MONITOR_HTTP_PORT", "9876"))
+DEFAULT_HTTP_PORT = 9876
 TEMP_FILE = "/sys/class/thermal/thermal_zone0/temp"
 MODEL_FILE = "/proc/device-tree/model"
 CPUINFO_FILE = "/proc/cpuinfo"
@@ -34,6 +34,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger('TempBroadcaster')
 
+def parse_http_port(raw_value):
+    """Parse the optional HTTP diagnostics port without breaking UDP broadcasts."""
+    if raw_value is None:
+        return DEFAULT_HTTP_PORT
+
+    raw_value = raw_value.strip()
+    if raw_value == "":
+        logger.warning("TEMP_MONITOR_HTTP_PORT is empty; disabling HTTP temperature endpoint")
+        return 0
+
+    try:
+        port = int(raw_value)
+    except ValueError:
+        logger.warning("TEMP_MONITOR_HTTP_PORT must be a number; disabling HTTP temperature endpoint")
+        return 0
+
+    if port < 0 or port > 65535:
+        logger.warning("TEMP_MONITOR_HTTP_PORT must be between 0 and 65535; disabling HTTP temperature endpoint")
+        return 0
+
+    return port
+
 
 class TemperatureBroadcaster:
     """Broadcasts CPU temperature over UDP"""
@@ -43,6 +65,7 @@ class TemperatureBroadcaster:
         self.interval = interval
         self.hostname = platform.node()
         self.shared_secret = os.getenv("TEMP_MONITOR_SHARED_SECRET", "").strip()
+        self.http_port = parse_http_port(os.getenv("TEMP_MONITOR_HTTP_PORT"))
         self.sock = None
         self.http_server = None
         self.http_thread = None
@@ -67,7 +90,7 @@ class TemperatureBroadcaster:
 
     def _setup_http_server(self):
         """Start a small HTTP endpoint for direct browser diagnostics."""
-        if HTTP_PORT <= 0:
+        if self.http_port <= 0:
             logger.info("HTTP temperature endpoint disabled")
             return
 
@@ -94,12 +117,12 @@ class TemperatureBroadcaster:
                 logger.debug("HTTP %s - %s", self.address_string(), format % args)
 
         try:
-            self.http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), TemperatureRequestHandler)
+            self.http_server = ThreadingHTTPServer(("0.0.0.0", self.http_port), TemperatureRequestHandler)
             self.http_thread = threading.Thread(target=self.http_server.serve_forever, daemon=True)
             self.http_thread.start()
-            logger.info(f"HTTP temperature endpoint available at http://0.0.0.0:{HTTP_PORT}/temps")
+            logger.info(f"HTTP temperature endpoint available at http://0.0.0.0:{self.http_port}/temps")
         except Exception as e:
-            logger.error(f"Failed to start HTTP endpoint on port {HTTP_PORT}: {e}")
+            logger.error(f"Failed to start HTTP endpoint on port {self.http_port}: {e}")
             self.http_server = None
             self.http_thread = None
 

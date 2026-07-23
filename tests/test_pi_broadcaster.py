@@ -22,6 +22,14 @@ class PiBroadcasterParsingTests(unittest.TestCase):
         self.broadcaster.latest_snapshot = None
         self.broadcaster.snapshot_lock = threading.Lock()
 
+
+    def test_parse_http_port_handles_invalid_values(self):
+        self.assertEqual(module.parse_http_port(None), 9876)
+        self.assertEqual(module.parse_http_port('9877'), 9877)
+        self.assertEqual(module.parse_http_port(''), 0)
+        self.assertEqual(module.parse_http_port('not-a-port'), 0)
+        self.assertEqual(module.parse_http_port('70000'), 0)
+
     def test_parse_pi_model(self):
         self.assertEqual(self.broadcaster._parse_pi_model('Raspberry Pi 5 Model B'), '5')
         self.assertEqual(self.broadcaster._parse_pi_model('Raspberry Pi Zero 2 W'), '0W2')
