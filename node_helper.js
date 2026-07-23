@@ -9,6 +9,7 @@ const os = require("os");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const crypto = require("crypto");
+const http = require("http");
 
 module.exports = NodeHelper.create({
     start: function() {
@@ -18,6 +19,8 @@ module.exports = NodeHelper.create({
         this.config = null;
         this.localMonitorTimer = null;
         this.tempsEndpointRegistered = false;
+        this.aggregateHttpServer = null;
+        this.aggregateHttpEndpointPath = null;
         this.latestUpdateAt = null;
         console.log("Starting node_helper for: " + this.name);
     },
@@ -27,6 +30,7 @@ module.exports = NodeHelper.create({
             this.config = payload;
             if (!this.started) {
                 this.registerTempsEndpoint();
+                this.startAggregateHttpServer();
                 this.startListening();
                 this.started = true;
             }
@@ -158,6 +162,21 @@ module.exports = NodeHelper.create({
         return Object.keys(this.devices).map(id => this.devices[id]);
     },
 
+    getTemperatureSnapshot: function() {
+        const devices = this.getDeviceList();
+        return {
+            type: "temperature_snapshot",
+            count: devices.length,
+            updatedAt: this.latestUpdateAt ? new Date(this.latestUpdateAt).toISOString() : null,
+            devices
+        };
+    },
+
+    sendTemperatureSnapshot: function(res) {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(this.getTemperatureSnapshot()));
+    },
+
     registerTempsEndpoint: function() {
         if (this.tempsEndpointRegistered || !this.expressApp) {
             return;
@@ -166,17 +185,48 @@ module.exports = NodeHelper.create({
         const endpointPath = this.config.tempsEndpointPath || "/temps";
 
         this.expressApp.get(endpointPath, (req, res) => {
-            const devices = this.getDeviceList();
-            res.json({
-                type: "temperature_snapshot",
-                count: devices.length,
-                updatedAt: this.latestUpdateAt ? new Date(this.latestUpdateAt).toISOString() : null,
-                devices
-            });
+            res.json(this.getTemperatureSnapshot());
         });
 
         this.tempsEndpointRegistered = true;
         console.log(`[MMM-RemoteTempMonitor] Temperature data endpoint available at ${endpointPath}`);
+    },
+
+
+    startAggregateHttpServer: function() {
+        const aggregatePort = Number(this.config.aggregatePort || this.config.rebroadcastPort || 9877);
+        const endpointPath = this.config.aggregateEndpointPath || this.config.tempsEndpointPath || "/temps";
+
+        if (!Number.isInteger(aggregatePort) || aggregatePort <= 0 || aggregatePort > 65535) {
+            console.warn(`[MMM-RemoteTempMonitor] Aggregate HTTP server disabled: invalid aggregatePort ${aggregatePort}`);
+            return;
+        }
+
+        if (this.aggregateHttpServer) {
+            return;
+        }
+
+        this.aggregateHttpEndpointPath = endpointPath;
+        this.aggregateHttpServer = http.createServer((req, res) => {
+            const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+
+            if (req.method === "GET" && requestUrl.pathname === endpointPath) {
+                this.sendTemperatureSnapshot(res);
+                return;
+            }
+
+            res.statusCode = 404;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "not_found", endpoint: endpointPath }));
+        });
+
+        this.aggregateHttpServer.on("error", (err) => {
+            console.error(`[MMM-RemoteTempMonitor] Aggregate HTTP server error on port ${aggregatePort}: ${err.message}`);
+        });
+
+        this.aggregateHttpServer.listen(aggregatePort, () => {
+            console.log(`[MMM-RemoteTempMonitor] Aggregate temperature endpoint available at http://0.0.0.0:${aggregatePort}${endpointPath}`);
+        });
     },
 
     getLocalHostHardwareInfo: function() {
@@ -290,6 +340,11 @@ module.exports = NodeHelper.create({
         if (this.server) {
             this.server.close();
             console.log("[MMM-RemoteTempMonitor] UDP listener stopped");
+        }
+        if (this.aggregateHttpServer) {
+            this.aggregateHttpServer.close();
+            this.aggregateHttpServer = null;
+            console.log("[MMM-RemoteTempMonitor] Aggregate HTTP server stopped");
         }
     }
 });

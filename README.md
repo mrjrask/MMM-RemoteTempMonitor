@@ -17,6 +17,7 @@ MMM-RemoteTempMonitor displays real-time CPU temperatures from Raspberry Pi devi
 - **Dual temperature units** - Shows both Celsius and Fahrenheit (configurable)
 - **Lightweight** - Minimal resource usage on both broadcaster and receiver
 - **Easy setup** - Simple installation scripts for both components
+- **Aggregate rebroadcast endpoint** - The MagicMirror node helper republishes the full displayed device snapshot on a dedicated HTTP port for other projects
 
 ## Color Scale
 
@@ -102,31 +103,34 @@ Here are the configuration options for the MagicMirror module:
 | `showLastSeen` | Show the age of each device update | `false` |
 | `showIpAddress` | Show each sender source IP address | `false` |
 | `sharedSecret` | Optional shared secret used to verify HMAC signatures on incoming packets | `""` |
-| `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot | `"/temps"` |
+| `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot on the MagicMirror HTTP server | `"/temps"` |
+| `aggregatePort` | Dedicated HTTP port that rebroadcasts the aggregate temperature snapshot for other projects | `9877` |
+| `aggregateEndpointPath` | HTTP path on `aggregatePort` that serves the aggregate temperature snapshot | `"/temps"` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
 
 
-### HTTP Data Endpoint
+### HTTP Data Endpoints
 
-There are two `/temps` endpoints you can use for troubleshooting:
+There are three `/temps` endpoints with different scopes:
 
-- The MagicMirror node helper serves the aggregated device snapshot on the computer running MagicMirror, using the same HTTP port as MagicMirror itself. Because browsers default to port 80 when no port is included, `http://192.168.1.201/temps` usually will not work unless MagicMirror is actually configured to use port 80.
-- The Raspberry Pi broadcaster service also serves its own latest local reading at `http://<remote Pi IP address>:9876/temps`. Use this direct broadcaster endpoint when you want to verify that the remote service is running and reading temperatures before troubleshooting UDP delivery to MagicMirror.
+- The remote broadcaster service serves only its own latest local reading at `http://<remote device IP address>:9876/temps`. This is why another project pointed at port `9876` only sees one device.
+- The MagicMirror node helper still serves the aggregated device snapshot on the computer running MagicMirror, using the same HTTP port as MagicMirror itself. For the default MagicMirror port, use `http://<MagicMirror host IP address>:8080/temps`.
+- The MagicMirror node helper also starts a dedicated aggregate rebroadcast server on `aggregatePort` (`9877` by default). Point other projects at this new port when they need the same full set of devices that the module is actively showing.
 
-Use this URL format instead:
-
-```text
-http://<MagicMirror host IP address>:<MagicMirror port>/temps
-```
-
-If your MagicMirror server is running on the default port and its host IP address is `192.168.1.201`, browse to:
+Use this URL format for the dedicated aggregate rebroadcast endpoint:
 
 ```text
-http://192.168.1.201:8080/temps
+http://<MagicMirror host IP address>:<aggregatePort>/temps
 ```
 
-The response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values:
+If the MagicMirror host IP address is `192.168.1.201` and you keep the default aggregate port, browse to:
+
+```text
+http://192.168.1.201:9877/temps
+```
+
+The aggregate response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values:
 
 ```json
 {
@@ -150,7 +154,7 @@ The response includes every currently known device, its source IP address, the m
 }
 ```
 
-Set `tempsEndpointPath` if you need to publish the snapshot at a different route.
+Set `aggregatePort` if port `9877` is already in use, and set `aggregateEndpointPath` if another project needs the dedicated aggregate endpoint at a different route. Set `tempsEndpointPath` only if you need to change the route on the MagicMirror HTTP server.
 
 ### Optional Packet Authentication
 
@@ -200,6 +204,8 @@ tempThresholds: {
         showCelsius: true,
         sortBy: "temperature",  // Show hottest first
         devicesPerPage: 9,
+        aggregatePort: 9877,
+        aggregateEndpointPath: "/temps",
         tempThresholds: {
             normal: 45,
             warm: 55,

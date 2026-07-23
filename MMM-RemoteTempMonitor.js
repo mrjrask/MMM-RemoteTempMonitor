@@ -21,7 +21,9 @@ Module.register("MMM-RemoteTempMonitor", {
         showLastSeen: false,          // Show last update age
         showIpAddress: false,         // Show source IP address
         sharedSecret: "",             // Optional shared secret for authenticated UDP packets
-        tempsEndpointPath: "/temps",   // HTTP endpoint exposing the latest received temperature data
+        tempsEndpointPath: "/temps",   // HTTP endpoint exposing the latest received temperature data on MagicMirror
+        aggregatePort: 9877,            // Dedicated HTTP port that rebroadcasts the aggregate snapshot
+        aggregateEndpointPath: "/temps", // HTTP path for the dedicated aggregate endpoint
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
