@@ -163,12 +163,31 @@ module.exports = NodeHelper.create({
     },
 
     getTemperatureSnapshot: function() {
-        const devices = this.getDeviceList();
+        const devices = this.getDeviceList().map(device => this.formatDeviceForSnapshot(device));
         return {
             type: "temperature_snapshot",
             count: devices.length,
             updatedAt: this.latestUpdateAt ? new Date(this.latestUpdateAt).toISOString() : null,
-            devices
+            devices,
+            temps: devices,
+            temperatures: devices
+        };
+    },
+
+    formatDeviceForSnapshot: function(device) {
+        return {
+            ...device,
+            device_id: device.deviceId,
+            id: device.deviceId,
+            name: device.hostname,
+            temp_c: device.celsius,
+            temperature_c: device.celsius,
+            temp_f: device.fahrenheit,
+            temperature_f: device.fahrenheit,
+            temperature: {
+                celsius: device.celsius,
+                fahrenheit: device.fahrenheit
+            }
         };
     },
 

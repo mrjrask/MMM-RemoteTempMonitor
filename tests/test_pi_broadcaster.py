@@ -64,12 +64,22 @@ class PiBroadcasterParsingTests(unittest.TestCase):
         self.assertEqual(snapshot['devices'][0]['hostname'], 'pi-test')
         self.assertEqual(snapshot['devices'][0]['celsius'], 42.5)
         self.assertEqual(snapshot['devices'][0]['fahrenheit'], 108.5)
+        self.assertEqual(snapshot['temps'], snapshot['devices'])
+        self.assertEqual(snapshot['temperatures'], snapshot['devices'])
+        self.assertEqual(snapshot['devices'][0]['device_id'], 'pi-test')
+        self.assertEqual(snapshot['devices'][0]['id'], 'pi-test')
+        self.assertEqual(snapshot['devices'][0]['name'], 'pi-test')
+        self.assertEqual(snapshot['devices'][0]['temp_c'], 42.5)
+        self.assertEqual(snapshot['devices'][0]['temperature_c'], 42.5)
+        self.assertEqual(snapshot['devices'][0]['temperature']['celsius'], 42.5)
 
     def test_http_snapshot_is_empty_before_first_reading(self):
         snapshot = self.broadcaster.create_http_snapshot(None)
 
         self.assertEqual(snapshot['count'], 0)
         self.assertEqual(snapshot['devices'], [])
+        self.assertEqual(snapshot['temps'], [])
+        self.assertEqual(snapshot['temperatures'], [])
         self.assertIsNone(snapshot['updatedAt'])
 
 
