@@ -208,9 +208,9 @@ module.exports = NodeHelper.create({
 
         this.aggregateHttpEndpointPath = endpointPath;
         this.aggregateHttpServer = http.createServer((req, res) => {
-            const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+            const requestUrl = this.parseAggregateRequestUrl(req);
 
-            if (req.method === "GET" && requestUrl.pathname === endpointPath) {
+            if (requestUrl && req.method === "GET" && requestUrl.pathname === endpointPath) {
                 this.sendTemperatureSnapshot(res);
                 return;
             }
@@ -227,6 +227,14 @@ module.exports = NodeHelper.create({
         this.aggregateHttpServer.listen(aggregatePort, () => {
             console.log(`[MMM-RemoteTempMonitor] Aggregate temperature endpoint available at http://0.0.0.0:${aggregatePort}${endpointPath}`);
         });
+    },
+
+    parseAggregateRequestUrl: function(req) {
+        try {
+            return new URL(req.url || "/", "http://localhost");
+        } catch (err) {
+            return null;
+        }
     },
 
     getLocalHostHardwareInfo: function() {
