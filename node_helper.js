@@ -17,6 +17,8 @@ module.exports = NodeHelper.create({
         this.server = null;
         this.config = null;
         this.localMonitorTimer = null;
+        this.tempsEndpointRegistered = false;
+        this.latestUpdateAt = null;
         console.log("Starting node_helper for: " + this.name);
     },
 
@@ -24,6 +26,7 @@ module.exports = NodeHelper.create({
         if (notification === "CONFIG") {
             this.config = payload;
             if (!this.started) {
+                this.registerTempsEndpoint();
                 this.startListening();
                 this.started = true;
             }
@@ -96,6 +99,7 @@ module.exports = NodeHelper.create({
                 lastSeen: Date.now(),
                 ip: rinfo.address
             };
+            this.latestUpdateAt = Date.now();
 
             // Send update to frontend
             this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
@@ -154,6 +158,27 @@ module.exports = NodeHelper.create({
         return Object.keys(this.devices).map(id => this.devices[id]);
     },
 
+    registerTempsEndpoint: function() {
+        if (this.tempsEndpointRegistered || !this.expressApp) {
+            return;
+        }
+
+        const endpointPath = this.config.tempsEndpointPath || "/temps";
+
+        this.expressApp.get(endpointPath, (req, res) => {
+            const devices = this.getDeviceList();
+            res.json({
+                type: "temperature_snapshot",
+                count: devices.length,
+                updatedAt: this.latestUpdateAt ? new Date(this.latestUpdateAt).toISOString() : null,
+                devices
+            });
+        });
+
+        this.tempsEndpointRegistered = true;
+        console.log(`[MMM-RemoteTempMonitor] Temperature data endpoint available at ${endpointPath}`);
+    },
+
     getLocalHostHardwareInfo: function() {
         let modelNumber = null;
 
@@ -195,6 +220,7 @@ module.exports = NodeHelper.create({
                     lastSeen: Date.now(),
                     ip: "127.0.0.1"
                 };
+                this.latestUpdateAt = Date.now();
 
                 this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
             });
