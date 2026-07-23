@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import importlib.util
 import json
+import threading
 from pathlib import Path
 import unittest
 
@@ -18,6 +19,8 @@ class PiBroadcasterParsingTests(unittest.TestCase):
         self.broadcaster.pi_model = '5'
         self.broadcaster.pi_ram = '8GB'
         self.broadcaster.shared_secret = ''
+        self.broadcaster.latest_snapshot = None
+        self.broadcaster.snapshot_lock = threading.Lock()
 
     def test_parse_pi_model(self):
         self.assertEqual(self.broadcaster._parse_pi_model('Raspberry Pi 5 Model B'), '5')
@@ -42,6 +45,24 @@ class PiBroadcasterParsingTests(unittest.TestCase):
         self.assertEqual(signature, expected)
         self.assertNotIn('auth_token', data)
         self.assertEqual(data['temperature']['celsius'], 42.5)
+
+    def test_http_snapshot_reports_latest_temperature(self):
+        self.broadcaster.update_latest_snapshot(42.5)
+
+        snapshot = self.broadcaster.create_http_snapshot(self.broadcaster.latest_snapshot)
+
+        self.assertEqual(snapshot['type'], 'temperature_snapshot')
+        self.assertEqual(snapshot['count'], 1)
+        self.assertEqual(snapshot['devices'][0]['hostname'], 'pi-test')
+        self.assertEqual(snapshot['devices'][0]['celsius'], 42.5)
+        self.assertEqual(snapshot['devices'][0]['fahrenheit'], 108.5)
+
+    def test_http_snapshot_is_empty_before_first_reading(self):
+        snapshot = self.broadcaster.create_http_snapshot(None)
+
+        self.assertEqual(snapshot['count'], 0)
+        self.assertEqual(snapshot['devices'], [])
+        self.assertIsNone(snapshot['updatedAt'])
 
 
 if __name__ == '__main__':

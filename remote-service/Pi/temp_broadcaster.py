@@ -13,11 +13,15 @@ import platform
 import logging
 import os
 import re
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
 from pathlib import Path
 
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 5  # seconds
+HTTP_PORT = int(os.getenv("TEMP_MONITOR_HTTP_PORT", "9876"))
 TEMP_FILE = "/sys/class/thermal/thermal_zone0/temp"
 MODEL_FILE = "/proc/device-tree/model"
 CPUINFO_FILE = "/proc/cpuinfo"
@@ -40,10 +44,15 @@ class TemperatureBroadcaster:
         self.hostname = platform.node()
         self.shared_secret = os.getenv("TEMP_MONITOR_SHARED_SECRET", "").strip()
         self.sock = None
+        self.http_server = None
+        self.http_thread = None
+        self.latest_snapshot = None
+        self.snapshot_lock = threading.Lock()
         self.targets = self._get_targets()
         self.pi_model = self.get_pi_model()
         self.pi_ram = self.get_pi_ram()
         self._setup_socket()
+        self._setup_http_server()
 
     def _setup_socket(self):
         """Setup UDP broadcast socket"""
@@ -54,6 +63,92 @@ class TemperatureBroadcaster:
         except Exception as e:
             logger.error(f"Failed to create socket: {e}")
             raise
+
+
+    def _setup_http_server(self):
+        """Start a small HTTP endpoint for direct browser diagnostics."""
+        if HTTP_PORT <= 0:
+            logger.info("HTTP temperature endpoint disabled")
+            return
+
+        broadcaster = self
+
+        class TemperatureRequestHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                parsed = urlparse(self.path)
+                if parsed.path not in ("/temps", "/"):
+                    self.send_error(404, "Not Found")
+                    return
+
+                with broadcaster.snapshot_lock:
+                    snapshot = broadcaster.latest_snapshot
+
+                body = json.dumps(broadcaster.create_http_snapshot(snapshot)).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                logger.debug("HTTP %s - %s", self.address_string(), format % args)
+
+        try:
+            self.http_server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), TemperatureRequestHandler)
+            self.http_thread = threading.Thread(target=self.http_server.serve_forever, daemon=True)
+            self.http_thread.start()
+            logger.info(f"HTTP temperature endpoint available at http://0.0.0.0:{HTTP_PORT}/temps")
+        except Exception as e:
+            logger.error(f"Failed to start HTTP endpoint on port {HTTP_PORT}: {e}")
+            self.http_server = None
+            self.http_thread = None
+
+    def update_latest_snapshot(self, temp_celsius):
+        """Store the latest temperature reading for the HTTP endpoint."""
+        if temp_celsius is None:
+            return
+
+        temp_fahrenheit = round((temp_celsius * 9/5) + 32, 1)
+        with self.snapshot_lock:
+            self.latest_snapshot = {
+                "type": "temperature",
+                "hostname": self.hostname,
+                "temperature": {
+                    "celsius": temp_celsius,
+                    "fahrenheit": temp_fahrenheit
+                },
+                "pi_model": self.pi_model,
+                "pi_ram": self.pi_ram,
+                "timestamp": int(time.time())
+            }
+
+    def create_http_snapshot(self, snapshot):
+        """Create the JSON response returned by the direct /temps endpoint."""
+        if snapshot is None:
+            return {
+                "type": "temperature_snapshot",
+                "count": 0,
+                "updatedAt": None,
+                "devices": []
+            }
+
+        return {
+            "type": "temperature_snapshot",
+            "count": 1,
+            "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(snapshot["timestamp"])),
+            "devices": [
+                {
+                    "deviceId": snapshot["hostname"],
+                    "hostname": snapshot["hostname"],
+                    "celsius": snapshot["temperature"]["celsius"],
+                    "fahrenheit": snapshot["temperature"]["fahrenheit"],
+                    "pi_model": snapshot["pi_model"],
+                    "pi_ram": snapshot["pi_ram"],
+                    "lastSeen": snapshot["timestamp"] * 1000,
+                    "ip": None
+                }
+            ]
+        }
 
     def _get_targets(self):
         """Determine target addresses for temperature updates."""
@@ -246,6 +341,7 @@ class TemperatureBroadcaster:
                 temp = self.get_cpu_temperature()
 
                 if temp is not None:
+                    self.update_latest_snapshot(temp)
                     message = self.create_message(temp)
                     if message and self.broadcast(message):
                         logger.info(f"Broadcast: {self.hostname} - {temp}°C ({(temp * 9/5) + 32:.1f}°F)")
@@ -259,6 +355,10 @@ class TemperatureBroadcaster:
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
         finally:
+            if self.http_server:
+                self.http_server.shutdown()
+                self.http_server.server_close()
+                logger.info("HTTP endpoint stopped")
             if self.sock:
                 self.sock.close()
                 logger.info("Socket closed")
