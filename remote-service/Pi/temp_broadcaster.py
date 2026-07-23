@@ -152,25 +152,48 @@ class TemperatureBroadcaster:
                 "type": "temperature_snapshot",
                 "count": 0,
                 "updatedAt": None,
-                "devices": []
+                "devices": [],
+                "temps": [],
+                "temperatures": []
             }
+
+        device = self.create_http_device(snapshot)
 
         return {
             "type": "temperature_snapshot",
             "count": 1,
             "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(snapshot["timestamp"])),
-            "devices": [
-                {
-                    "deviceId": snapshot["hostname"],
-                    "hostname": snapshot["hostname"],
-                    "celsius": snapshot["temperature"]["celsius"],
-                    "fahrenheit": snapshot["temperature"]["fahrenheit"],
-                    "pi_model": snapshot["pi_model"],
-                    "pi_ram": snapshot["pi_ram"],
-                    "lastSeen": snapshot["timestamp"] * 1000,
-                    "ip": None
-                }
-            ]
+            "devices": [device],
+            "temps": [device],
+            "temperatures": [device]
+        }
+
+    def create_http_device(self, snapshot):
+        """Create a compatibility-friendly device object for JSON consumers."""
+        device_id = snapshot["hostname"]
+        celsius = snapshot["temperature"]["celsius"]
+        fahrenheit = snapshot["temperature"]["fahrenheit"]
+
+        return {
+            "deviceId": device_id,
+            "device_id": device_id,
+            "id": device_id,
+            "hostname": snapshot["hostname"],
+            "name": snapshot["hostname"],
+            "celsius": celsius,
+            "temp_c": celsius,
+            "temperature_c": celsius,
+            "fahrenheit": fahrenheit,
+            "temp_f": fahrenheit,
+            "temperature_f": fahrenheit,
+            "temperature": {
+                "celsius": celsius,
+                "fahrenheit": fahrenheit
+            },
+            "pi_model": snapshot["pi_model"],
+            "pi_ram": snapshot["pi_ram"],
+            "lastSeen": snapshot["timestamp"] * 1000,
+            "ip": None
         }
 
     def _get_targets(self):

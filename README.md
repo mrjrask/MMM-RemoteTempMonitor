@@ -130,7 +130,7 @@ If the MagicMirror host IP address is `192.168.1.201` and you keep the default a
 http://192.168.1.201:9877/temps
 ```
 
-The aggregate response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values:
+The aggregate response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values. It also includes PiNOC-friendly aliases (`temps` and `temperatures` lists, plus per-device `device_id`, `id`, `name`, `temp_c`, and `temperature_c` fields) so PiNOC can read the same data the MagicMirror module displays from `http://<MagicMirror host IP address>:9877/temps`:
 
 ```json
 {
@@ -140,16 +140,31 @@ The aggregate response includes every currently known device, its source IP addr
   "devices": [
     {
       "deviceId": "192.168.1.42:raspberrypi",
+      "device_id": "192.168.1.42:raspberrypi",
+      "id": "192.168.1.42:raspberrypi",
       "hostname": "raspberrypi",
+      "name": "raspberrypi",
       "celsius": 45.2,
+      "temp_c": 45.2,
+      "temperature_c": 45.2,
       "fahrenheit": 113.4,
       "pi_model": "4",
       "pi_ram": "4GB",
       "platform": null,
       "cpu_arch": null,
+      "temperature": {
+        "celsius": 45.2,
+        "fahrenheit": 113.4
+      },
       "lastSeen": 1784808000000,
       "ip": "192.168.1.42"
     }
+  ],
+  "temps": [
+    "same device objects as devices"
+  ],
+  "temperatures": [
+    "same device objects as devices"
   ]
 }
 ```
