@@ -10,6 +10,7 @@ This service reads the CPU temperature from the Raspberry Pi's thermal sensor an
 
 - Reads CPU temperature directly from Raspberry Pi thermal sensor
 - Broadcasts temperature in both Celsius and Fahrenheit
+- Exposes the latest local reading at `http://<remote-pi-ip>:9876/temps` for direct browser diagnostics
 - **Automatically detects Raspberry Pi model** (Pi 0W, 0W2, 2, 3, 4, 5, CM5)
 - **Automatically detects RAM size** (512MB, 1GB, 2GB, 4GB, 8GB, 16GB)
 - Includes hostname for device identification
@@ -89,6 +90,16 @@ sudo systemctl restart temp-monitor.service
 sudo systemctl disable temp-monitor.service
 ```
 
+## Browser Diagnostics
+
+The Raspberry Pi broadcaster also serves its latest local reading as JSON over HTTP. If the remote Pi address is `192.168.1.201`, browse to:
+
+```text
+http://192.168.1.201:9876/temps
+```
+
+Use this endpoint to confirm the broadcaster itself is reading temperature data. This is separate from the MagicMirror `/temps` endpoint, which is served by the MagicMirror host on the MagicMirror HTTP port.
+
 ## Manual Testing
 
 To test the broadcaster manually without installing as a service:
@@ -105,6 +116,7 @@ You can modify these settings in `temp_broadcaster.py`:
 
 - `BROADCAST_PORT` (default: 9876) - UDP port for broadcasting
 - `BROADCAST_INTERVAL` (default: 5) - Seconds between broadcasts
+- `TEMP_MONITOR_HTTP_PORT` (default: 9876) - TCP port for the direct `/temps` diagnostics endpoint; set to `0` to disable it
 
 After changing configuration, restart the service:
 ```bash

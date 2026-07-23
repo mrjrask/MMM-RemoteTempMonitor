@@ -74,12 +74,11 @@ For each Raspberry Pi you want to monitor:
 1. Clone this repository on the Raspberry Pi:
 ```bash
 git clone https://github.com/mrjrask/MMM-RemoteTempMonitor.git
-cd MMM-RemoteTempMonitor/remote-service
+cd MMM-RemoteTempMonitor/remote-service/Pi
 ```
 
-2. Run the installation script:
+2. Run the Raspberry Pi broadcaster installation script:
 ```bash
-chmod +x install.sh
 sudo ./install.sh
 ```
 
@@ -110,10 +109,21 @@ Here are the configuration options for the MagicMirror module:
 
 ### HTTP Data Endpoint
 
-The MagicMirror node helper exposes the latest received data as JSON at `http://<Pi IP Address>:<MagicMirror port>/temps` by default. If your MagicMirror server is running on the default port, browse to:
+There are two `/temps` endpoints you can use for troubleshooting:
+
+- The MagicMirror node helper serves the aggregated device snapshot on the computer running MagicMirror, using the same HTTP port as MagicMirror itself. Because browsers default to port 80 when no port is included, `http://192.168.1.201/temps` usually will not work unless MagicMirror is actually configured to use port 80.
+- The Raspberry Pi broadcaster service also serves its own latest local reading at `http://<remote Pi IP address>:9876/temps`. Use this direct broadcaster endpoint when you want to verify that the remote service is running and reading temperatures before troubleshooting UDP delivery to MagicMirror.
+
+Use this URL format instead:
 
 ```text
-http://<Pi IP Address>:8080/temps
+http://<MagicMirror host IP address>:<MagicMirror port>/temps
+```
+
+If your MagicMirror server is running on the default port and its host IP address is `192.168.1.201`, browse to:
+
+```text
+http://192.168.1.201:8080/temps
 ```
 
 The response includes every currently known device, its source IP address, the most recent temperatures, hardware metadata, and last-seen timestamp values:
@@ -292,6 +302,15 @@ sudo systemctl restart temp-monitor
 ```
 
 ## Troubleshooting
+
+### `/temps` does not load in a browser
+
+- If you are checking the remote broadcaster Pi directly, include the broadcaster TCP port: `http://192.168.1.201:9876/temps`.
+- If you are checking the MagicMirror aggregate endpoint, include the URL scheme and MagicMirror HTTP port. For the default MagicMirror port, use `http://192.168.1.201:8080/temps`, not `192.168.1.201/temps`.
+- Use the MagicMirror host IP address for the aggregate endpoint, and the remote Pi IP address for the direct broadcaster endpoint.
+- Confirm MagicMirror itself is reachable from the same browser, for example `http://192.168.1.201:8080/`.
+- If you changed MagicMirror's `port` in `config/config.js`, use that port in the `/temps` URL.
+- An empty JSON response with `"count": 0` means the endpoint is working, but MagicMirror has not received a valid UDP temperature packet yet. Continue with the checks below.
 
 ### Module shows "No temperature monitors found"
 
