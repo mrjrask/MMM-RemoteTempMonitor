@@ -1,0 +1,155 @@
+/**
+ * MMM-RemoteTempStatusMonitor Styles
+ * Displays pulsing status indicators for remote devices
+ * 
+ * Yellow dots pulse every 2 seconds for apt update availability
+ * Blue dots pulse every 1.5 seconds for client updates
+ * The different timing prevents visual sync issues
+ */
+
+/* Base styling for the status monitor module */
+.mmm-remote-temp-status-monitor {
+    text-align: left;
+    opacity: 1;
+    transition: opacity var(--page-fade-duration, 1000ms) ease-in-out;
+}
+
+.mmm-remote-temp-status-monitor.is-fading {
+    opacity: 0;
+}
+
+.mmm-remote-temp-status-monitor table {
+    border-spacing: 10px 2px;
+    border-collapse: separate;
+}
+
+.mmm-remote-temp-status-monitor th {
+    text-align: left;
+    padding: 2px 10px;
+    border-bottom: 1px solid #666;
+    color: #aaa;
+}
+
+.mmm-remote-temp-status-monitor td {
+    padding: 2px 10px;
+}
+
+/* Device column - extra padding to accommodate dots */
+.mmm-remote-temp-status-monitor .status-device-cell {
+    padding-left: 25px;  /* Extra space for dots before name */
+    min-width: 180px;
+    vertical-align: top;
+}
+
+/* Container for status dots and device name */
+.mmm-remote-temp-status-monitor .status-device-content {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Status dot indicator container - positioned vertically to the left of name */
+.mmm-remote-temp-status-monitor .status-dot-indicator {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 8px;
+    /* Ensure enough room for dots before name text starts */
+    min-width: 20px;
+    padding-right: 4px;
+}
+
+/* Status dot - the actual indicator dot */
+.mmm-remote-temp-status-monitor .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: block;
+    /* Initial state - not visible */
+    opacity: 0;
+    /* Prevent dots from pulsing at same frequency */
+    animation-name: none;
+}
+
+/* Visible status dot - starts pulsing */
+.mmm-remote-temp-status-monitor .status-dot.visible {
+    opacity: 1;
+    /* Yellow dots pulse at 2s */
+    /* Blue dots pulse at 1.5s - different timing to avoid sync */
+}
+
+/* Device name span */
+.mmm-remote-temp-status-monitor .status-device-name {
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #ccc;
+    white-space: nowrap;
+}
+
+/* Device metadata (Pi model, RAM) */
+.mmm-remote-temp-status-monitor .status-device-meta {
+    color: #888;
+    font-size: 0.8em;
+    margin-left: 4px;
+}
+
+/* Yellow update available dot - pulses at 2 second intervals */
+@keyframes pulseUpdate {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* Blue client update dot - pulses at 1.5 second intervals (different from yellow) */
+@keyframes pulseClient {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* Responsive adjustments for small screens */
+@media (max-width: 600px) {
+    .mmm-remote-temp-status-monitor table {
+        border-spacing: 5px 1px;
+    }
+
+    .mmm-remote-temp-status-monitor th,
+    .mmm-remote-temp-status-monitor td {
+        padding: 1px 8px;
+    }
+
+    /* Ensure dots are still visible and readable */
+    .mmm-remote-temp-status-monitor .status-dot-indicator {
+        min-width: 18px;
+        margin-right: 6px;
+        padding-right: 2px;
+    }
+
+    .mmm-remote-temp-status-monitor .status-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .mmm-remote-temp-status-monitor .status-device-name {
+        font-size: 0.85em;
+    }
+
+    .mmm-remote-temp-status-monitor .status-device-meta {
+        font-size: 0.7em;
+        margin-left: 2px;
+    }
+}
+
+/* Additional note: The different pulse timing means you'll see:
+   - Yellow dot: visible -> half-visible -> visible (2s cycle)
+   - Blue dot: visible -> less visible -> visible (1.5s cycle)
+   
+   This creates a non-synced, organic pulsing effect even when both dots appear.
+*/

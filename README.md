@@ -450,5 +450,14 @@ Run the lightweight JavaScript and Python unit tests before submitting changes:
 
 ```bash
 npm test
+
+python3 -m unittest discover -s tests
+
+# Run status broadcaster to check for issues (in separate terminal)
+cd remote-service/Pi
+cronicle --port 9876 --interval 5
+```
+
+## Changelog
 python3 -m unittest discover -s tests
 ```

@@ -1,0 +1,20 @@
+[Unit]
+Description=Remote Status Monitor - System Update Checker
+After=network.target status-monitor.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/remote-temp-monitor/status
+EnvironmentFile=-/etc/default/temp-monitor-status
+ExecStart=/usr/bin/python3 /opt/remote-temp-monitor/status/status-broadcaster.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=status-monitor
+
+[Install]
+WantedBy=multi-user.target
