@@ -15,6 +15,9 @@ import subprocess
 import time
 from pathlib import Path
 
+# Keep in sync with remote-service/VERSION (checked by tests)
+SERVICE_VERSION = "1.1.0"
+
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 5  # seconds
@@ -121,6 +124,7 @@ class TemperatureBroadcaster:
             },
             "platform": "macOS",
             "cpu_arch": self.cpu_arch,
+            "service_version": SERVICE_VERSION,
             "timestamp": int(time.time()),
         }
 

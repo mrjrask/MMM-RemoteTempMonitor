@@ -106,6 +106,8 @@ Here are the configuration options for the MagicMirror module:
 | `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot on the MagicMirror HTTP server | `"/temps"` |
 | `aggregatePort` | Dedicated HTTP port that rebroadcasts the aggregate temperature snapshot for other projects | `9877` |
 | `aggregateEndpointPath` | HTTP path on `aggregatePort` that serves the aggregate temperature snapshot | `"/temps"` |
+| `latestServiceVersion` | Expected remote-service version; devices reporting an older (or no) `service_version` get a red dot before their name. Defaults to `remote-service/VERSION` | `""` |
+| `showServiceUpdateDot` | Show the red dot for devices running an outdated remote-service | `true` |
 | `tempThresholds` | Temperature thresholds for color coding (°C) | See below |
 
 

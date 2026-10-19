@@ -33,6 +33,17 @@
     padding-right: 20px;
 }
 
+/* Red dot shown before devices whose remote-service is out of date */
+.mmm-remote-temp-monitor .service-update-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 999px;
+    background-color: #ff3b30;
+    box-shadow: 0 0 4px rgba(255, 59, 48, 0.7);
+}
+
 .mmm-remote-temp-monitor .hostname-header {
     min-width: 150px;
 }

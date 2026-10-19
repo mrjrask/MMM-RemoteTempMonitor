@@ -18,6 +18,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from pathlib import Path
 
+# Keep in sync with remote-service/VERSION (checked by tests)
+SERVICE_VERSION = "1.1.0"
+
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 5  # seconds
@@ -142,6 +145,7 @@ class TemperatureBroadcaster:
                 },
                 "pi_model": self.pi_model,
                 "pi_ram": self.pi_ram,
+                "service_version": SERVICE_VERSION,
                 "timestamp": int(time.time())
             }
 
@@ -192,6 +196,7 @@ class TemperatureBroadcaster:
             },
             "pi_model": snapshot["pi_model"],
             "pi_ram": snapshot["pi_ram"],
+            "service_version": snapshot["service_version"],
             "lastSeen": snapshot["timestamp"] * 1000,
             "ip": None
         }
@@ -342,6 +347,7 @@ class TemperatureBroadcaster:
             },
             "pi_model": self.pi_model,
             "pi_ram": self.pi_ram,
+            "service_version": SERVICE_VERSION,
             "timestamp": int(time.time())
         }
 

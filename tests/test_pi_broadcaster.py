@@ -85,3 +85,20 @@ class PiBroadcasterParsingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ServiceVersionTests(unittest.TestCase):
+    def test_broadcaster_versions_match_version_file(self):
+        root = Path(__file__).resolve().parents[1] / 'remote-service'
+        expected = (root / 'VERSION').read_text().strip()
+        for path in ('Pi/temp_broadcaster.py', 'Mac/temp_broadcaster_mac.py', 'Windows/temp_broadcaster_windows.py'):
+            self.assertIn(f'SERVICE_VERSION = "{expected}"', (root / path).read_text(), path)
+
+    def test_pi_message_includes_service_version(self):
+        broadcaster = module.TemperatureBroadcaster.__new__(module.TemperatureBroadcaster)
+        broadcaster.hostname = 'pi-test'
+        broadcaster.pi_model = '5'
+        broadcaster.pi_ram = '8GB'
+        broadcaster.shared_secret = ''
+        message = json.loads(broadcaster.create_message(40.0))
+        self.assertEqual(message['service_version'], module.SERVICE_VERSION)
