@@ -61,3 +61,32 @@ test('getTemperatureSnapshot includes PiNOC-compatible aliases', () => {
   assert.equal(snapshot.devices[0].temperature_c, 42.5);
   assert.equal(snapshot.devices[0].temperature.celsius, 42.5);
 });
+
+test('isServiceOutdated compares versions and treats missing versions as outdated', () => {
+  const helper = loadNodeHelper();
+
+  assert.equal(helper.isServiceOutdated('1.0.0', '1.1.0'), true);
+  assert.equal(helper.isServiceOutdated('1.1.0', '1.1.0'), false);
+  assert.equal(helper.isServiceOutdated('1.10.0', '1.9.0'), false);
+  assert.equal(helper.isServiceOutdated(null, '1.1.0'), true);
+  assert.equal(helper.isServiceOutdated(null, null), false);
+});
+
+test('handleMessage flags devices running an outdated remote-service', () => {
+  const helper = loadNodeHelper();
+  helper.config = { latestServiceVersion: '1.1.0' };
+  helper.devices = {};
+  helper.sendSocketNotification = () => {};
+
+  const send = (hostname, extra) => helper.handleMessage(
+    Buffer.from(JSON.stringify({ type: 'temperature', hostname, temperature: { celsius: 40, fahrenheit: 104 }, ...extra })),
+    { address: '10.0.0.5' }
+  );
+  send('old', {});
+  send('stale', { service_version: '1.0.0' });
+  send('current', { service_version: '1.1.0' });
+
+  assert.equal(helper.devices['10.0.0.5:old'].serviceUpdateAvailable, true);
+  assert.equal(helper.devices['10.0.0.5:stale'].serviceUpdateAvailable, true);
+  assert.equal(helper.devices['10.0.0.5:current'].serviceUpdateAvailable, false);
+});

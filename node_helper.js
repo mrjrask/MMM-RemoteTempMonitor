@@ -10,8 +10,36 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const crypto = require("crypto");
 const http = require("http");
+const path = require("path");
+
+const VERSION_FILE = path.join(__dirname, "remote-service", "VERSION");
+
+function parseVersion(version) {
+    const match = String(version || "").trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+    return match ? [match[1], match[2] || 0, match[3] || 0].map(Number) : null;
+}
+
+// Returns true when `installed` is missing/unparseable or older than `latest`.
+function isServiceOutdated(installed, latest) {
+    const latestParts = parseVersion(latest);
+    if (!latestParts) {
+        return false;
+    }
+    const installedParts = parseVersion(installed);
+    if (!installedParts) {
+        return true;
+    }
+    for (let i = 0; i < 3; i += 1) {
+        if (installedParts[i] !== latestParts[i]) {
+            return installedParts[i] < latestParts[i];
+        }
+    }
+    return false;
+}
 
 module.exports = NodeHelper.create({
+    isServiceOutdated,
+
     start: function() {
         this.started = false;
         this.devices = {};
@@ -77,6 +105,17 @@ module.exports = NodeHelper.create({
         }
     },
 
+    getLatestServiceVersion: function() {
+        if (this.config && this.config.latestServiceVersion) {
+            return String(this.config.latestServiceVersion);
+        }
+        try {
+            return fs.readFileSync(VERSION_FILE, "utf8").trim();
+        } catch (err) {
+            return null;
+        }
+    },
+
     handleMessage: function(msg, rinfo) {
         try {
             const rawMessage = msg.toString();
@@ -100,6 +139,8 @@ module.exports = NodeHelper.create({
                 pi_ram: data.pi_ram || null,
                 platform: data.platform || null,
                 cpu_arch: data.cpu_arch || null,
+                service_version: data.service_version || null,
+                serviceUpdateAvailable: isServiceOutdated(data.service_version, this.getLatestServiceVersion()),
                 lastSeen: Date.now(),
                 ip: rinfo.address
             };

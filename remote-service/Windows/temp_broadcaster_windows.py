@@ -20,6 +20,9 @@ except ImportError as exc:
         "Missing dependency: wmi. Please run install.ps1 or 'pip install wmi pywin32'."
     ) from exc
 
+# Keep in sync with remote-service/VERSION (checked by tests)
+SERVICE_VERSION = "1.1.0"
+
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 5  # seconds
@@ -118,6 +121,7 @@ class TemperatureBroadcaster:
             },
             "platform": "Windows",
             "cpu_arch": self.cpu_arch,
+            "service_version": SERVICE_VERSION,
             "timestamp": int(time.time()),
         }
 

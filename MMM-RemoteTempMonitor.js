@@ -24,6 +24,8 @@ Module.register("MMM-RemoteTempMonitor", {
         tempsEndpointPath: "/temps",   // HTTP endpoint exposing the latest received temperature data on MagicMirror
         aggregatePort: 9877,            // Dedicated HTTP port that rebroadcasts the aggregate snapshot
         aggregateEndpointPath: "/temps", // HTTP path for the dedicated aggregate endpoint
+        latestServiceVersion: "",      // Override the expected remote-service version (defaults to remote-service/VERSION)
+        showServiceUpdateDot: true,    // Show a red dot before devices running an outdated remote-service
 
         // Temperature thresholds for color coding (in Celsius)
         tempThresholds: {
@@ -170,7 +172,13 @@ Module.register("MMM-RemoteTempMonitor", {
                 displayName += ` (${device.pi_ram})`;
             }
 
-            hostnameCell.textContent = displayName;
+            if (this.config.showServiceUpdateDot && device.serviceUpdateAvailable) {
+                const updateDot = document.createElement("span");
+                updateDot.className = "service-update-dot";
+                updateDot.title = "remote-service update available";
+                hostnameCell.appendChild(updateDot);
+            }
+            hostnameCell.appendChild(document.createTextNode(displayName));
             hostnameCell.className = "hostname";
             row.appendChild(hostnameCell);
 
