@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: |
+          node --check MMM-RemoteTempMonitor.js
+          node --check MMM-RemoteTempStatusMonitor.js
+          node --check node_helper.js
+          node --check bin/remote-temp-monitor-cli.js
+      - name: Unit tests
+        run: npm test
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile broadcaster scripts
+        run: python -m py_compile remote-service/*/*.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check install scripts
+        run: bash -n remote-service/install.sh remote-service/Pi/*.sh remote-service/Mac/install.sh
