@@ -28,13 +28,17 @@ Module.register("MMM-RemoteTempMonitor", {
         showServiceUpdateDot: true,    // Show a red dot before devices running an outdated remote-service
 
         // Temperature thresholds for color coding (in Celsius). Each value is the
-        // temperature at which that color starts. Raspberry Pi 4/5 begin soft
-        // throttling at 80C (hard throttle at 85C), so 80+ is critical.
+        // temperature at which that color starts; below `warm` is green. Raspberry
+        // Pi 4/5 begin soft throttling at 80C and hard throttle at 85C.
         tempThresholds: {
-            warm: 45,        // 45-60: yellow (below 45: green)
-            hot: 60,         // 60-70: orange
-            veryHot: 70,     // 70-80: red
-            critical: 80     // 80+: purple
+            warm: 50,        // 50-55: lime
+            warmer: 55,      // 55-60: yellow
+            hot: 60,         // 60-65: amber
+            hotter: 65,      // 65-70: orange
+            veryHot: 70,     // 70-75: red-orange
+            severe: 75,      // 75-80: red
+            critical: 80,    // 80-85: purple (pulsing)
+            extreme: 85      // 85+: magenta (fast pulse)
         }
     },
 
@@ -245,18 +249,23 @@ Module.register("MMM-RemoteTempMonitor", {
 
     getTempColorClass: function(celsius) {
         const thresholds = this.config.tempThresholds;
+        const tiers = [
+            ["extreme", "temp-extreme"],
+            ["critical", "temp-critical"],
+            ["severe", "temp-severe"],
+            ["veryHot", "temp-very-hot"],
+            ["hotter", "temp-hotter"],
+            ["hot", "temp-hot"],
+            ["warmer", "temp-warmer"],
+            ["warm", "temp-warm"]
+        ];
 
-        if (celsius >= thresholds.critical) {
-            return "temp-critical";  // Purple
-        } else if (celsius >= thresholds.veryHot) {
-            return "temp-very-hot";  // Red
-        } else if (celsius >= thresholds.hot) {
-            return "temp-hot";       // Orange
-        } else if (celsius >= thresholds.warm) {
-            return "temp-warm";      // Yellow
-        } else {
-            return "temp-normal";    // Green
+        for (const [key, className] of tiers) {
+            if (typeof thresholds[key] === "number" && celsius >= thresholds[key]) {
+                return className;
+            }
         }
+        return "temp-normal";
     },
 
     sortDevices: function(devices) {

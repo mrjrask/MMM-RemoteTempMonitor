@@ -23,11 +23,15 @@ MMM-RemoteTempMonitor displays real-time CPU temperatures from Raspberry Pi devi
 
 The temperature display uses an intuitive color scale:
 
-- 🟢 **Green** (< 45°C) - Normal operating temperature
-- 🟡 **Yellow** (45-60°C) - Warm
-- 🟠 **Orange** (60-70°C) - Hot
-- 🔴 **Red** (70-80°C) - Very hot
-- 🟣 **Purple** (80°C+) - Critical (with pulsing animation)
+- 🟢 **Green** (< 50°C) - Normal operating temperature
+- 🟢 **Lime** (50-55°C) - Warm
+- 🟡 **Yellow** (55-60°C) - Warmer
+- 🟠 **Amber** (60-65°C) - Hot
+- 🟠 **Orange** (65-70°C) - Hotter
+- 🔴 **Red-orange** (70-75°C) - Very hot
+- 🔴 **Red** (75-80°C) - Severe
+- 🟣 **Purple** (80-85°C) - Critical (pulsing; Pi 4/5 soft throttle)
+- 🟣 **Magenta** (85°C+) - Extreme (fast pulse; hard throttle)
 
 ## Screenshots
 
@@ -201,10 +205,14 @@ The default temperature thresholds (in Celsius). Each value is the temperature a
 
 ```javascript
 tempThresholds: {
-    warm: 45,        // 45-60°C: yellow (below 45°C: green)
-    hot: 60,         // 60-70°C: orange
-    veryHot: 70,     // 70-80°C: red
-    critical: 80     // 80°C+: purple
+    warm: 50,        // 50-55°C: lime (below 50°C: green)
+    warmer: 55,      // 55-60°C: yellow
+    hot: 60,         // 60-65°C: amber
+    hotter: 65,      // 65-70°C: orange
+    veryHot: 70,     // 70-75°C: red-orange
+    severe: 75,      // 75-80°C: red
+    critical: 80,    // 80-85°C: purple (pulsing)
+    extreme: 85      // 85°C+: magenta (fast pulse)
 }
 ```
 
@@ -226,9 +234,13 @@ The defaults are based on Raspberry Pi behavior: Pi 4 and Pi 5 begin soft thrott
         aggregateEndpointPath: "/temps",
         tempThresholds: {
             warm: 50,
-            hot: 65,
-            veryHot: 75,
-            critical: 80
+            warmer: 55,
+            hot: 60,
+            hotter: 65,
+            veryHot: 70,
+            severe: 75,
+            critical: 80,
+            extreme: 85
         }
     }
 }

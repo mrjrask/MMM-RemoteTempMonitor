@@ -77,48 +77,71 @@
     background-color: rgba(255, 255, 255, 0.8);
 }
 
-/* Temperature Color Scale: Green -> Yellow -> Orange -> Red -> Purple */
+/* Temperature Color Scale: Green -> Lime -> Yellow -> Amber -> Orange -> Red-Orange -> Red -> Purple -> Magenta */
 
-/* Normal temperature (< 45°C) - Green */
+/* Normal (< 50°C) - Green */
 .mmm-remote-temp-monitor .temp-normal {
     color: #00ff00;
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.6);
 }
 
-/* Warm temperature (45-60°C) - Yellow */
+/* Warm (50-55°C) - Lime */
 .mmm-remote-temp-monitor .temp-warm {
+    color: #b5e61d;
+    text-shadow: 0 0 5px rgba(181, 230, 29, 0.6);
+}
+
+/* Warmer (55-60°C) - Yellow */
+.mmm-remote-temp-monitor .temp-warmer {
     color: #ffd700;
-    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.6);
 }
 
-/* Hot temperature (60-70°C) - Orange */
+/* Hot (60-65°C) - Amber */
 .mmm-remote-temp-monitor .temp-hot {
-    color: #ff8c00;
-    text-shadow: 0 0 5px rgba(255, 140, 0, 0.5);
+    color: #ffb000;
+    text-shadow: 0 0 6px rgba(255, 176, 0, 0.6);
 }
 
-/* Very hot temperature (70-80°C) - Red */
+/* Hotter (65-70°C) - Orange */
+.mmm-remote-temp-monitor .temp-hotter {
+    color: #ff8c00;
+    text-shadow: 0 0 6px rgba(255, 140, 0, 0.6);
+}
+
+/* Very hot (70-75°C) - Red-orange */
 .mmm-remote-temp-monitor .temp-very-hot {
+    color: #ff4500;
+    text-shadow: 0 0 8px rgba(255, 69, 0, 0.6);
+}
+
+/* Severe (75-80°C) - Red */
+.mmm-remote-temp-monitor .temp-severe {
     color: #ff0000;
     text-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
 }
 
-/* Critical temperature (80°C+) - Purple with pulsing effect */
+/* Critical (80-85°C) - Purple, pulsing (Pi 4/5 soft throttle) */
 .mmm-remote-temp-monitor .temp-critical {
     color: #9400d3;
-    text-shadow: 0 0 10px rgba(148, 0, 211, 0.8);
+    text-shadow: 0 0 10px rgba(148, 0, 211, 0.6);
     animation: pulse 2s ease-in-out infinite;
 }
 
-/* Pulsing animation for critical temperatures */
+/* Extreme (85°C+) - Magenta, fast pulse (hard throttle) */
+.mmm-remote-temp-monitor .temp-extreme {
+    color: #ff00ff;
+    text-shadow: 0 0 12px rgba(255, 0, 255, 0.6);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+/* Pulsing animation for critical and extreme temperatures */
 @keyframes pulse {
     0%, 100% {
         opacity: 1;
-        text-shadow: 0 0 10px rgba(148, 0, 211, 0.8);
     }
     50% {
-        opacity: 0.7;
-        text-shadow: 0 0 15px rgba(148, 0, 211, 1);
+        opacity: 0.6;
     }
 }
 
