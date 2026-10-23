@@ -18,11 +18,10 @@ const DEFAULTS = {
     clearScreen: true,
     sharedSecret: process.env.TEMP_MONITOR_SHARED_SECRET || "",
     tempThresholds: {
-        normal: 50,
-        warm: 60,
-        hot: 70,
-        veryHot: 80,
-        critical: 85
+        warm: 45,
+        hot: 60,
+        veryHot: 70,
+        critical: 80
     }
 };
 

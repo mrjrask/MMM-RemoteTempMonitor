@@ -23,8 +23,8 @@ MMM-RemoteTempMonitor displays real-time CPU temperatures from Raspberry Pi devi
 
 The temperature display uses an intuitive color scale:
 
-- 🟢 **Green** (< 50°C) - Normal operating temperature
-- 🟡 **Yellow-Green** (50-60°C) - Warm
+- 🟢 **Green** (< 45°C) - Normal operating temperature
+- 🟡 **Yellow** (45-60°C) - Warm
 - 🟠 **Orange** (60-70°C) - Hot
 - 🔴 **Red** (70-80°C) - Very hot
 - 🟣 **Purple** (80°C+) - Critical (with pulsing animation)
@@ -197,17 +197,18 @@ Set `monitorLocalHost: true` to include the MagicMirror host itself when a local
 
 ### Temperature Thresholds
 
-The default temperature thresholds (in Celsius):
+The default temperature thresholds (in Celsius). Each value is the temperature at which that color starts:
 
 ```javascript
 tempThresholds: {
-    normal: 50,      // Below 50°C: green
-    warm: 60,        // 50-60°C: yellow-green
-    hot: 70,         // 60-70°C: orange
-    veryHot: 80,     // 70-80°C: red
-    critical: 85     // 80°C+: purple
+    warm: 45,        // 45-60°C: yellow (below 45°C: green)
+    hot: 60,         // 60-70°C: orange
+    veryHot: 70,     // 70-80°C: red
+    critical: 80     // 80°C+: purple
 }
 ```
+
+The defaults are based on Raspberry Pi behavior: Pi 4 and Pi 5 begin soft throttling (reducing CPU frequency) at 80°C and throttle harder at 85°C; Pi 3 and earlier throttle at about 85°C (the Pi 3B+ throttles earlier, around 60°C). Idle Pis typically sit around 40-55°C depending on case and cooling. Adjust the thresholds if your hardware runs hotter or cooler.
 
 ### Example Configuration
 
@@ -224,8 +225,7 @@ tempThresholds: {
         aggregatePort: 9877,
         aggregateEndpointPath: "/temps",
         tempThresholds: {
-            normal: 45,
-            warm: 55,
+            warm: 50,
             hot: 65,
             veryHot: 75,
             critical: 80

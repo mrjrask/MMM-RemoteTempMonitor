@@ -27,13 +27,14 @@ Module.register("MMM-RemoteTempMonitor", {
         latestServiceVersion: "",      // Override the expected remote-service version (defaults to remote-service/VERSION)
         showServiceUpdateDot: true,    // Show a red dot before devices running an outdated remote-service
 
-        // Temperature thresholds for color coding (in Celsius)
+        // Temperature thresholds for color coding (in Celsius). Each value is the
+        // temperature at which that color starts. Raspberry Pi 4/5 begin soft
+        // throttling at 80C (hard throttle at 85C), so 80+ is critical.
         tempThresholds: {
-            normal: 50,      // Below this: green
-            warm: 60,        // 50-60: yellow-green
-            hot: 70,         // 60-70: orange
-            veryHot: 80,     // 70-80: red
-            critical: 85     // 80+: purple
+            warm: 45,        // 45-60: yellow (below 45: green)
+            hot: 60,         // 60-70: orange
+            veryHot: 70,     // 70-80: red
+            critical: 80     // 80+: purple
         }
     },
 

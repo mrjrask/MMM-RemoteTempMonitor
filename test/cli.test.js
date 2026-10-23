@@ -13,9 +13,11 @@ test('parseArgs handles common options', () => {
 });
 
 test('getTempLabel maps thresholds', () => {
-  assert.equal(cli.getTempLabel(45, cli.DEFAULTS.tempThresholds), 'Normal');
-  assert.equal(cli.getTempLabel(60, cli.DEFAULTS.tempThresholds), 'Warm');
-  assert.equal(cli.getTempLabel(86, cli.DEFAULTS.tempThresholds), 'Critical');
+  assert.equal(cli.getTempLabel(41.9, cli.DEFAULTS.tempThresholds), 'Normal');
+  assert.equal(cli.getTempLabel(56, cli.DEFAULTS.tempThresholds), 'Warm');
+  assert.equal(cli.getTempLabel(65, cli.DEFAULTS.tempThresholds), 'Hot');
+  assert.equal(cli.getTempLabel(75, cli.DEFAULTS.tempThresholds), 'Very hot');
+  assert.equal(cli.getTempLabel(80, cli.DEFAULTS.tempThresholds), 'Critical');
 });
 
 test('sortDevices sorts by temperature and hostname', () => {
