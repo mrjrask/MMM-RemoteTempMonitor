@@ -79,16 +79,16 @@
 
 /* Temperature Color Scale: Green -> Yellow -> Orange -> Red -> Purple */
 
-/* Normal temperature (< 50°C) - Green */
+/* Normal temperature (< 45°C) - Green */
 .mmm-remote-temp-monitor .temp-normal {
     color: #00ff00;
     text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
 }
 
-/* Warm temperature (50-60°C) - Yellow-Green */
+/* Warm temperature (45-60°C) - Yellow */
 .mmm-remote-temp-monitor .temp-warm {
-    color: #9acd32;
-    text-shadow: 0 0 5px rgba(154, 205, 50, 0.5);
+    color: #ffd700;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
 }
 
 /* Hot temperature (60-70°C) - Orange */
