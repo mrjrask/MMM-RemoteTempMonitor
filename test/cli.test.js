@@ -13,11 +13,12 @@ test('parseArgs handles common options', () => {
 });
 
 test('getTempLabel maps thresholds', () => {
-  assert.equal(cli.getTempLabel(41.9, cli.DEFAULTS.tempThresholds), 'Normal');
-  assert.equal(cli.getTempLabel(56, cli.DEFAULTS.tempThresholds), 'Warm');
-  assert.equal(cli.getTempLabel(65, cli.DEFAULTS.tempThresholds), 'Hot');
-  assert.equal(cli.getTempLabel(75, cli.DEFAULTS.tempThresholds), 'Very hot');
-  assert.equal(cli.getTempLabel(80, cli.DEFAULTS.tempThresholds), 'Critical');
+  const t = cli.DEFAULTS.tempThresholds;
+  const cases = [[41.9, 'Normal'], [49.9, 'Normal'], [50, 'Warm'], [56, 'Warmer'], [60, 'Hot'], [65, 'Hotter'],
+    [70, 'Very hot'], [75, 'Severe'], [80, 'Critical'], [85, 'Extreme']];
+  for (const [celsius, label] of cases) {
+    assert.equal(cli.getTempLabel(celsius, t), label);
+  }
 });
 
 test('sortDevices sorts by temperature and hostname', () => {

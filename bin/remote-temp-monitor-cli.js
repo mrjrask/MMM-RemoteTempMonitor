@@ -18,10 +18,14 @@ const DEFAULTS = {
     clearScreen: true,
     sharedSecret: process.env.TEMP_MONITOR_SHARED_SECRET || "",
     tempThresholds: {
-        warm: 45,
+        warm: 50,
+        warmer: 55,
         hot: 60,
+        hotter: 65,
         veryHot: 70,
-        critical: 80
+        severe: 75,
+        critical: 80,
+        extreme: 85
     }
 };
 
@@ -115,17 +119,20 @@ Options:
 }
 
 function getTempLabel(celsius, thresholds) {
-    if (celsius >= thresholds.critical) {
-        return "Critical";
-    }
-    if (celsius >= thresholds.veryHot) {
-        return "Very hot";
-    }
-    if (celsius >= thresholds.hot) {
-        return "Hot";
-    }
-    if (celsius >= thresholds.warm) {
-        return "Warm";
+    const tiers = [
+        ["extreme", "Extreme"],
+        ["critical", "Critical"],
+        ["severe", "Severe"],
+        ["veryHot", "Very hot"],
+        ["hotter", "Hotter"],
+        ["hot", "Hot"],
+        ["warmer", "Warmer"],
+        ["warm", "Warm"]
+    ];
+    for (const [key, label] of tiers) {
+        if (typeof thresholds[key] === "number" && celsius >= thresholds[key]) {
+            return label;
+        }
     }
     return "Normal";
 }
