@@ -11,7 +11,8 @@ Module.register("MMM-RemoteTempMonitor", {
         port: 9876,                    // UDP port to listen on
         updateInterval: 5000,          // How often to refresh display (ms)
         maxDeviceAge: 30000,          // Remove devices not seen for this long (ms)
-        cleanupInterval: 60000,       // How often to check for stale devices (ms)
+        statusMaxDeviceAge: 1200000,   // Status broadcasts default to every ten minutes
+        cleanupInterval: 10000,       // How often to check for stale devices (ms)
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
         sortBy: "temperature",        // Sort by: "hostname" or "temperature"
@@ -23,6 +24,8 @@ Module.register("MMM-RemoteTempMonitor", {
         sharedSecret: "",             // Optional shared secret for authenticated UDP packets
         tempsEndpointPath: "/temps",   // HTTP endpoint exposing the latest received temperature data on MagicMirror
         aggregatePort: 9877,            // Dedicated HTTP port that rebroadcasts the aggregate snapshot
+        aggregateHost: "127.0.0.1",   // Use 0.0.0.0 with snapshotToken for remote clients
+        snapshotToken: "",             // Bearer token for remote HTTP snapshot access
         aggregateEndpointPath: "/temps", // HTTP path for the dedicated aggregate endpoint
         latestServiceVersion: "",      // Override the expected remote-service version (defaults to remote-service/VERSION)
         showServiceUpdateDot: true,    // Show a red dot before devices running an outdated remote-service
@@ -51,8 +54,18 @@ Module.register("MMM-RemoteTempMonitor", {
         this.isTransitioning = false;
         this.pendingFadeIn = false;
         this.wrapperElement = null;
+        this.pageRotationTimer = null;
         this.startPageRotation();
         this.sendSocketNotification("CONFIG", this.config);
+    },
+
+    suspend: function() {
+        clearInterval(this.pageRotationTimer);
+        this.pageRotationTimer = null;
+    },
+
+    resume: function() {
+        this.startPageRotation();
     },
 
     getStyles: function() {
@@ -66,6 +79,8 @@ Module.register("MMM-RemoteTempMonitor", {
             this.loaded = true;
             const fadeSpeed = wasLoaded ? 0 : this.config.pageTransitionSpeed;
             this.updateDom(fadeSpeed);
+        } else if (notification === "STATUS_UPDATE") {
+            this.sendNotification("REMOTE_TEMP_STATUS_UPDATE", payload);
         }
     },
 
@@ -306,8 +321,9 @@ Module.register("MMM-RemoteTempMonitor", {
     },
 
     startPageRotation: function() {
+        if (this.pageRotationTimer) return;
         const interval = this.config.updateInterval || 5000;
-        setInterval(() => {
+        this.pageRotationTimer = setInterval(() => {
             if (!this.loaded || this.totalPages <= 1) {
                 return;
             }

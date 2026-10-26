@@ -98,7 +98,8 @@ Here are the configuration options for the MagicMirror module:
 | `port` | UDP port to listen on | `9876` |
 | `updateInterval` | How often to refresh display (ms) | `5000` |
 | `maxDeviceAge` | Remove devices not seen for this long (ms) | `30000` |
-| `cleanupInterval` | How often to check for stale devices (ms) | `60000` |
+| `cleanupInterval` | How often to check for stale devices (ms) | `10000` |
+| `statusMaxDeviceAge` | How long to retain status broadcasts (ms) | `1200000` |
 | `showFahrenheit` | Show Fahrenheit temperature | `true` |
 | `showCelsius` | Show Celsius temperature | `true` |
 | `sortBy` | Sort devices by "hostname" or "temperature" | `"temperature"` |
@@ -109,6 +110,8 @@ Here are the configuration options for the MagicMirror module:
 | `sharedSecret` | Optional shared secret used to verify HMAC signatures on incoming packets | `""` |
 | `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot on the MagicMirror HTTP server | `"/temps"` |
 | `aggregatePort` | Dedicated HTTP port that rebroadcasts the aggregate temperature snapshot for other projects | `9877` |
+| `aggregateHost` | Bind address of the dedicated endpoint; set to `"0.0.0.0"` for remote clients when using a token | `"127.0.0.1"` |
+| `snapshotToken` | Bearer token required for remote requests to both aggregate endpoints | `""` (loopback only) |
 | `aggregateEndpointPath` | HTTP path on `aggregatePort` that serves the aggregate temperature snapshot | `"/temps"` |
 | `latestServiceVersion` | Expected remote-service version; devices reporting an older (or no) `service_version` get a red dot before their name. Defaults to `remote-service/VERSION` | `""` |
 | `showServiceUpdateDot` | Show the red dot for devices running an outdated remote-service | `true` |
@@ -123,6 +126,8 @@ There are three `/temps` endpoints with different scopes:
 - The remote broadcaster service serves only its own latest local reading at `http://<remote device IP address>:9876/temps`. This is why another project pointed at port `9876` only sees one device.
 - The MagicMirror node helper still serves the aggregated device snapshot on the computer running MagicMirror, using the same HTTP port as MagicMirror itself. For the default MagicMirror port, use `http://<MagicMirror host IP address>:8080/temps`.
 - The MagicMirror node helper also starts a dedicated aggregate rebroadcast server on `aggregatePort` (`9877` by default). Point other projects at this new port when they need the same full set of devices that the module is actively showing.
+
+Both endpoints allow local requests by default. To serve another computer, configure `aggregateHost: "0.0.0.0"` and a nonempty `snapshotToken`, then send `Authorization: Bearer <token>` with requests. The endpoint on MagicMirror's own HTTP port also requires the token for remote requests. Keep the token out of browser JavaScript and URLs.
 
 Use this URL format for the dedicated aggregate rebroadcast endpoint:
 

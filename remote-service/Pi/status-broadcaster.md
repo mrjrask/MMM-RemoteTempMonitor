@@ -75,22 +75,27 @@ In your `config.js`:
 ```javascript
 modules: [
     {
+        module: 'MMM-RemoteTempMonitor',
+        position: 'top_right',
+        config: {
+            port: 9876,
+            statusMaxDeviceAge: 1200000
+        }
+    },
+    {
         module: 'MMM-RemoteTempStatusMonitor',
         position: 'top_bar',
         header: 'Remote Devices Status',
         height: '60px',
         config: {
-            port: 9876,                    // Same as temperature monitor
-            maxDeviceAge: 30000,
-            cleanupInterval: 60000,        // How often to refresh (ms)
-            updatePulseDuration: 2000,    // ms for yellow pulse
-            clientPulseDuration: 1500,    // ms for blue pulse
-            aggregatePort: 9877,          // HTTP port for status
-            aggregateEndpointPath: '/status'
+            updatePulseDuration: 2000,
+            clientPulseDuration: 1500
         }
     }
 ]
 ```
+
+Link `MMM-RemoteTempMonitor/MMM-RemoteTempStatusMonitor` into MagicMirror's `modules` directory as `MMM-RemoteTempStatusMonitor`. Status packets are received by the temperature helper and forwarded to the status display. Configure the same `sharedSecret` on the temperature module and broadcaster if signing is enabled.
 
 ## CSS Styling
 

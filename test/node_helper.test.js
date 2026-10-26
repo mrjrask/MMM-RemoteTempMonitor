@@ -90,3 +90,31 @@ test('handleMessage flags devices running an outdated remote-service', () => {
   assert.equal(helper.devices['10.0.0.5:stale'].serviceUpdateAvailable, true);
   assert.equal(helper.devices['10.0.0.5:current'].serviceUpdateAvailable, false);
 });
+
+test('status broadcasts reach the status display and reject bad signatures', () => {
+  const helper = loadNodeHelper();
+  helper.config = { sharedSecret: 'secret' };
+  helper.devices = {};
+  helper.statusDevices = {};
+  const notifications = [];
+  helper.sendSocketNotification = (kind, payload) => notifications.push([kind, payload]);
+  const data = { type: 'status', hostname: 'pi', device_id: 'pi-1', statusUpdateAvailable: true, statusClientUpdate: false };
+  helper.handleMessage(Buffer.from(JSON.stringify(data)), { address: '10.0.0.5' });
+  assert.equal(notifications.length, 0);
+  const crypto = require('node:crypto');
+  const hmac = crypto.createHmac('sha256', 'secret').update(JSON.stringify(data)).digest('hex');
+  helper.handleMessage(Buffer.from(JSON.stringify({ ...data, hmac })), { address: '10.0.0.5' });
+  assert.equal(notifications[0][0], 'STATUS_UPDATE');
+  assert.equal(notifications[0][1].devices[0].statusUpdateAvailable, true);
+});
+
+test('snapshots require loopback access or a bearer token', () => {
+  const helper = loadNodeHelper();
+  helper.config = { snapshotToken: '' };
+  const denied = { statusCode: 200, end: () => {} };
+  assert.equal(helper.authorizeSnapshot({ socket: { remoteAddress: '10.0.0.5' }, headers: {} }, denied), false);
+  assert.equal(denied.statusCode, 403);
+  assert.equal(helper.authorizeSnapshot({ socket: { remoteAddress: '127.0.0.1' }, headers: {} }, denied), true);
+  helper.config.snapshotToken = 'read-secret';
+  assert.equal(helper.authorizeSnapshot({ socket: { remoteAddress: '10.0.0.5' }, headers: { authorization: 'Bearer read-secret' } }, denied), true);
+});

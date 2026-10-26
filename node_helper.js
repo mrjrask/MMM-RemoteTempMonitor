@@ -46,6 +46,8 @@ module.exports = NodeHelper.create({
         this.server = null;
         this.config = null;
         this.localMonitorTimer = null;
+        this.cleanupTimer = null;
+        this.statusDevices = {};
         this.tempsEndpointRegistered = false;
         this.aggregateHttpServer = null;
         this.aggregateHttpEndpointPath = null;
@@ -61,6 +63,9 @@ module.exports = NodeHelper.create({
                 this.startAggregateHttpServer();
                 this.startListening();
                 this.started = true;
+            } else {
+                this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
+                this.sendSocketNotification("STATUS_UPDATE", { devices: Object.values(this.statusDevices) });
             }
         }
     },
@@ -120,6 +125,10 @@ module.exports = NodeHelper.create({
         try {
             const rawMessage = msg.toString();
             const data = JSON.parse(rawMessage);
+            if (data && data.type === "status") {
+                this.handleStatusMessage(data, rawMessage, rinfo);
+                return;
+            }
             const validated = this.validateTemperatureMessage(data, rawMessage);
 
             if (!validated.valid) {
@@ -153,6 +162,26 @@ module.exports = NodeHelper.create({
         } catch (err) {
             console.error(`[MMM-RemoteTempMonitor] Error parsing message: ${err.message}`);
         }
+    },
+
+    handleStatusMessage: function(data, rawMessage, rinfo) {
+        if (typeof data.hostname !== "string" || !data.hostname.trim() ||
+            typeof data.statusUpdateAvailable !== "boolean" || typeof data.statusClientUpdate !== "boolean" ||
+            !this.isMessageAuthenticated(data, rawMessage)) {
+            console.warn(`[MMM-RemoteTempMonitor] Ignored invalid status packet from ${rinfo.address}`);
+            return;
+        }
+        const deviceId = String(data.device_id || `${rinfo.address}:${data.hostname}`);
+        this.statusDevices[deviceId] = {
+            deviceId,
+            hostname: data.hostname,
+            pi_model: data.pi_model || null,
+            pi_ram: data.pi_ram || null,
+            statusUpdateAvailable: data.statusUpdateAvailable,
+            statusClientUpdate: data.statusClientUpdate,
+            lastSeen: Date.now()
+        };
+        this.sendSocketNotification("STATUS_UPDATE", { devices: Object.values(this.statusDevices) });
     },
 
     validateTemperatureMessage: function(data, rawMessage) {
@@ -245,6 +274,7 @@ module.exports = NodeHelper.create({
         const endpointPath = this.config.tempsEndpointPath || "/temps";
 
         this.expressApp.get(endpointPath, (req, res) => {
+            if (!this.authorizeSnapshot(req, res)) return;
             res.json(this.getTemperatureSnapshot());
         });
 
@@ -271,6 +301,7 @@ module.exports = NodeHelper.create({
             const requestUrl = this.parseAggregateRequestUrl(req);
 
             if (requestUrl && req.method === "GET" && requestUrl.pathname === endpointPath) {
+                if (!this.authorizeSnapshot(req, res)) return;
                 this.sendTemperatureSnapshot(res);
                 return;
             }
@@ -284,9 +315,20 @@ module.exports = NodeHelper.create({
             console.error(`[MMM-RemoteTempMonitor] Aggregate HTTP server error on port ${aggregatePort}: ${err.message}`);
         });
 
-        this.aggregateHttpServer.listen(aggregatePort, () => {
-            console.log(`[MMM-RemoteTempMonitor] Aggregate temperature endpoint available at http://0.0.0.0:${aggregatePort}${endpointPath}`);
+        const host = this.config.snapshotToken ? (this.config.aggregateHost || "0.0.0.0") : "127.0.0.1";
+        this.aggregateHttpServer.listen(aggregatePort, host, () => {
+            console.log(`[MMM-RemoteTempMonitor] Aggregate temperature endpoint available at http://${host}:${aggregatePort}${endpointPath}`);
         });
+    },
+
+    authorizeSnapshot: function(req, res) {
+        const token = this.config.snapshotToken;
+        const remote = req.socket && req.socket.remoteAddress;
+        if (token && req.headers.authorization === `Bearer ${token}`) return true;
+        if (!token && (remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1")) return true;
+        res.statusCode = 403;
+        res.end("Forbidden");
+        return false;
     },
 
     parseAggregateRequestUrl: function(req) {
@@ -379,10 +421,11 @@ module.exports = NodeHelper.create({
     },
 
     startCleanupTimer: function() {
-        const cleanupInterval = this.config.cleanupInterval || 60000; // 1 minute default
+        const cleanupInterval = this.config.cleanupInterval || 10000;
         const maxAge = this.config.maxDeviceAge || 30000; // 30 seconds default
+        const statusMaxAge = this.config.statusMaxDeviceAge || 1200000;
 
-        setInterval(() => {
+        this.cleanupTimer = setInterval(() => {
             const now = Date.now();
             let changed = false;
 
@@ -393,6 +436,14 @@ module.exports = NodeHelper.create({
                     changed = true;
                 }
             });
+            let statusChanged = false;
+            Object.keys(this.statusDevices).forEach(deviceId => {
+                if (now - this.statusDevices[deviceId].lastSeen > statusMaxAge) {
+                    delete this.statusDevices[deviceId];
+                    statusChanged = true;
+                }
+            });
+            if (statusChanged) this.sendSocketNotification("STATUS_UPDATE", { devices: Object.values(this.statusDevices) });
 
             if (changed) {
                 this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
@@ -401,6 +452,10 @@ module.exports = NodeHelper.create({
     },
 
     stop: function() {
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
         if (this.localMonitorTimer) {
             clearInterval(this.localMonitorTimer);
             this.localMonitorTimer = null;

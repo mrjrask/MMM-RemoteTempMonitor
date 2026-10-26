@@ -10,12 +10,6 @@
 
 Module.register("MMM-RemoteTempStatusMonitor", {
     defaults: {
-        port: 9876,                    // Same UDP port as temperature monitor
-        maxDeviceAge: 30000,          // Remove devices not seen for this long (ms)
-        cleanupInterval: 60000,       // How often to check for stale devices (ms)
-        aggregatePort: 9877,           // HTTP port for status endpoint
-        aggregateEndpointPath: "/status", // HTTP path for status endpoint
-
         // Colors for status indicators
         updateAvailableColor: "#FFFF00",   // Yellow for apt updates
         updateAvailableShadow: "rgba(255, 255, 0, 0.6)",
@@ -31,25 +25,17 @@ Module.register("MMM-RemoteTempStatusMonitor", {
         Log.info("Starting module: " + this.name);
         this.devices = [];
         this.loaded = false;
-        this.updateInterval = this.config.cleanupInterval;
-        this.startStatusRefresh();
-        
-        // Send CONFIG to self to initialize
-        this.sendSocketNotification("CONFIG", this.config);
     },
 
     getStyles: function() {
         return ["MMM-RemoteTempStatusMonitor.css"];
     },
 
-    socketNotificationReceived: function(notification, payload) {
-        if (notification === "STATUS_UPDATE") {
+    notificationReceived: function(notification, payload) {
+        if (notification === "REMOTE_TEMP_STATUS_UPDATE") {
             this.devices = payload.devices || [];
             this.loaded = true;
             this.updateDom(0);
-        } else if (notification === "CONFIG") {
-            // Self-initialization for CONFIG notification
-            this.sendSocketNotification(notification, payload);
         }
     },
 
@@ -140,11 +126,5 @@ Module.register("MMM-RemoteTempStatusMonitor", {
         wrapper.appendChild(body);
 
         return wrapper;
-    },
-
-    startStatusRefresh: function() {
-        setInterval(() => {
-            this.updateDom(this.config.cleanupInterval - 1000);
-        }, this.updateInterval);
     }
 });

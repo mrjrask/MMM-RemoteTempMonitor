@@ -91,6 +91,14 @@ The blue dot will appear when any of these git changes are detected:
 
 ## Installation
 
+To load the status display as a separate MagicMirror module, link the bundled module directory into MagicMirror's `modules` directory and add `MMM-RemoteTempStatusMonitor` to `config.js` alongside `MMM-RemoteTempMonitor`:
+
+```bash
+ln -s ~/MagicMirror/modules/MMM-RemoteTempMonitor/MMM-RemoteTempStatusMonitor ~/MagicMirror/modules/MMM-RemoteTempStatusMonitor
+```
+
+The temperature module receives status broadcasts and forwards updates to the status display. Keep the temperature module enabled and set its `sharedSecret` to the broadcaster's secret when signing is enabled. The status expiry defaults to 20 minutes (`statusMaxDeviceAge`) to accommodate ten-minute status broadcasts.
+
 ### Full Installation (Recommended)
 
 ```bash
@@ -325,11 +333,7 @@ Response format:
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `port` | UDP port to listen on | `9876` |
-| `maxDeviceAge` | Remove devices not seen for this long (ms) | `30000` |
-| `cleanupInterval` | How often to refresh status display (ms) | `60000` |
-| `aggregatePort` | HTTP port for status rebroadcast | `9877` |
-| `aggregateEndpointPath` | HTTP path for status endpoint | `/status` |
+| `statusMaxDeviceAge` | Set on `MMM-RemoteTempMonitor`; remove status devices after this many ms | `1200000` |
 | `updatePulseDuration` | Yellow dot pulse duration (ms) | `2000` |
 | `clientPulseDuration` | Blue dot pulse duration (ms) | `1500` |
 | `updateAvailableColor` | Color for update dot | `#FFFF00` |
