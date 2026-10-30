@@ -5,7 +5,7 @@ This installer runs a lightweight Python service that broadcasts CPU temperature
 ## Requirements
 
 - macOS 11+ (Intel or Apple Silicon)
-- Python 3 installed (`/usr/bin/python3`)
+- Python 3.9+ installed and available in PATH
 - Administrator access (the temperature command requires elevated privileges)
 
 ## Installation
@@ -51,3 +51,5 @@ To require authenticated packets, set the same shared secret here and in the Mag
 ```bash
 TEMP_MONITOR_SHARED_SECRET=change-me
 ```
+
+The installer resolves source paths from its own directory and records the absolute Python interpreter path in the LaunchDaemon. `powermetrics` support depends on your Mac hardware; unavailable readings are skipped and timed-out commands are terminated.

@@ -5,7 +5,7 @@ This installer runs a Python service that broadcasts CPU temperature over UDP fo
 ## Requirements
 
 - Windows 10/11
-- Python 3 installed and available in PATH
+- A machine-wide Python 3.9+ installation available to SYSTEM (not a Microsoft Store alias or per-user installation)
 - Administrator access
 
 ## Installation
@@ -52,3 +52,5 @@ To require authenticated packets, set the same shared secret here and in the Mag
 ```bash
 TEMP_MONITOR_SHARED_SECRET=change-me
 ```
+
+The installer creates an isolated Python environment under ProgramData and records its absolute interpreter path in the SYSTEM task. Dependency installation failures abort setup.

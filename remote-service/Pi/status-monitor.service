@@ -1,6 +1,6 @@
 [Unit]
 Description=Remote Status Monitor - System Update Checker
-After=network.target status-monitor.service
+After=network.target
 
 [Service]
 Type=simple

@@ -5,21 +5,26 @@ Broadcasts Raspberry Pi CPU temperature over UDP for MagicMirror module
 """
 
 import socket
-import hashlib
-import hmac
 import json
+import sys
+from pathlib import Path
+
+try:
+    from broadcaster_common import sign_message, DiagnosticsServer
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from broadcaster_common import sign_message, DiagnosticsServer
 import time
 import platform
 import logging
 import os
 import re
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
-from pathlib import Path
 
 # Keep in sync with remote-service/VERSION (checked by tests)
-SERVICE_VERSION = "1.1.0"
+SERVICE_VERSION = "1.2.0"
 
 # Configuration
 BROADCAST_PORT = 9876
@@ -120,10 +125,10 @@ class TemperatureBroadcaster:
                 logger.debug("HTTP %s - %s", self.address_string(), format % args)
 
         try:
-            self.http_server = ThreadingHTTPServer(("0.0.0.0", self.http_port), TemperatureRequestHandler)
+            self.http_server = DiagnosticsServer((os.getenv("TEMP_MONITOR_HTTP_HOST", "127.0.0.1"), self.http_port), TemperatureRequestHandler)
             self.http_thread = threading.Thread(target=self.http_server.serve_forever, daemon=True)
             self.http_thread.start()
-            logger.info(f"HTTP temperature endpoint available at http://0.0.0.0:{self.http_port}/temps")
+            logger.info(f"HTTP temperature endpoint available on TCP port {self.http_port}/temps")
         except Exception as e:
             logger.error(f"Failed to start HTTP endpoint on port {self.http_port}: {e}")
             self.http_server = None
@@ -358,12 +363,7 @@ class TemperatureBroadcaster:
 
     def _sign_message(self, message):
         """Create an HMAC signature for a temperature message."""
-        payload = json.dumps(message, separators=(",", ":"))
-        return hmac.new(
-            self.shared_secret.encode("utf-8"),
-            payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        return sign_message(message, self.shared_secret)
 
     def broadcast(self, message):
         """Send message via UDP broadcast or unicast targets"""
@@ -396,7 +396,7 @@ class TemperatureBroadcaster:
                     self.update_latest_snapshot(temp)
                     message = self.create_message(temp)
                     if message and self.broadcast(message):
-                        logger.info(f"Broadcast: {self.hostname} - {temp}°C ({(temp * 9/5) + 32:.1f}°F)")
+                        logger.debug(f"Broadcast: {self.hostname} - {temp}°C ({(temp * 9/5) + 32:.1f}°F)")
                 else:
                     logger.warning("No temperature data available")
 
@@ -406,6 +406,7 @@ class TemperatureBroadcaster:
             logger.info("Broadcaster stopped by user")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
+            raise
         finally:
             if self.http_server:
                 self.http_server.shutdown()

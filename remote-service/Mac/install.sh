@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHON_PATH="$(command -v python3)"
 SERVICE_DIR="/usr/local/remote-temp-monitor"
 PLIST_PATH="/Library/LaunchDaemons/com.remote-temp-monitor.plist"
 SCRIPT_NAME="temp_broadcaster_mac.py"
@@ -11,7 +13,8 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 mkdir -p "$SERVICE_DIR"
-cp "$SCRIPT_NAME" "$SERVICE_DIR/$SCRIPT_NAME"
+cp "$SCRIPT_DIR/$SCRIPT_NAME" "$SERVICE_DIR/$SCRIPT_NAME"
+cp "$SCRIPT_DIR/../broadcaster_common.py" "$SERVICE_DIR/broadcaster_common.py"
 chmod +x "$SERVICE_DIR/$SCRIPT_NAME"
 
 cat > "$PLIST_PATH" <<PLIST
@@ -23,7 +26,7 @@ cat > "$PLIST_PATH" <<PLIST
     <string>com.remote-temp-monitor</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/usr/bin/python3</string>
+      <string>${PYTHON_PATH}</string>
       <string>${SERVICE_DIR}/${SCRIPT_NAME}</string>
     </array>
     <key>RunAtLoad</key>

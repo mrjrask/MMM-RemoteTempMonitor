@@ -87,7 +87,7 @@ cd MMM-RemoteTempMonitor/remote-service/Pi
 sudo ./install.sh
 ```
 
-The service will start automatically and begin broadcasting temperature data.
+The installer starts both temperature and status broadcasters. The optional [status display](README-STATUS.md) shows package updates and local repository changes. New services run as the account invoking sudo; existing service accounts and environment configuration are preserved.
 
 ## Configuration Options
 
@@ -107,6 +107,8 @@ Here are the configuration options for the MagicMirror module:
 | `monitorLocalHost` | Include MagicMirror host temperature when available | `false` |
 | `showLastSeen` | Show the age of each device update | `false` |
 | `showIpAddress` | Show each sender source IP address | `false` |
+| `maxDevices` | Maximum identities per packet type; additional new identities are ignored until space is available | `256` |
+| `maxPacketAge` | Maximum signed-packet clock difference (ms); temperature tolerance is also limited by `maxDeviceAge` | `120000` |
 | `sharedSecret` | Optional shared secret used to verify HMAC signatures on incoming packets | `""` |
 | `tempsEndpointPath` | HTTP path that exposes the latest received temperature snapshot on the MagicMirror HTTP server | `"/temps"` |
 | `aggregatePort` | Dedicated HTTP port that rebroadcasts the aggregate temperature snapshot for other projects | `9877` |
@@ -123,11 +125,11 @@ Here are the configuration options for the MagicMirror module:
 
 There are three `/temps` endpoints with different scopes:
 
-- The remote broadcaster service serves only its own latest local reading at `http://<remote device IP address>:9876/temps`. This is why another project pointed at port `9876` only sees one device.
+- The remote broadcaster service serves only its own latest local reading at `http://127.0.0.1:9876/temps` on that Pi. Set `TEMP_MONITOR_HTTP_HOST=0.0.0.0` in `/etc/default/temp-monitor` to enable direct access from a trusted LAN; direct broadcaster HTTP endpoints have no authentication. This is why another project pointed at port `9876` only sees one device.
 - The MagicMirror node helper still serves the aggregated device snapshot on the computer running MagicMirror, using the same HTTP port as MagicMirror itself. For the default MagicMirror port, use `http://<MagicMirror host IP address>:8080/temps`.
 - The MagicMirror node helper also starts a dedicated aggregate rebroadcast server on `aggregatePort` (`9877` by default). Point other projects at this new port when they need the same full set of devices that the module is actively showing.
 
-Both endpoints allow local requests by default. To serve another computer, configure `aggregateHost: "0.0.0.0"` and a nonempty `snapshotToken`, then send `Authorization: Bearer <token>` with requests. The endpoint on MagicMirror's own HTTP port also requires the token for remote requests. Keep the token out of browser JavaScript and URLs.
+Both MagicMirror aggregate endpoints allow local requests by default. To serve another computer, configure `aggregateHost: "0.0.0.0"` and a nonempty `snapshotToken`, then send `Authorization: Bearer <token>` with requests. The endpoint on MagicMirror's own HTTP port also requires the token for remote requests. Keep the token out of browser JavaScript and URLs.
 
 Use this URL format for the dedicated aggregate rebroadcast endpoint:
 
@@ -197,6 +199,8 @@ On broadcaster hosts, set:
 ```bash
 TEMP_MONITOR_SHARED_SECRET=change-me
 ```
+
+Upgrade all broadcasters to service version 1.2.0 for consistent signatures at whole-number temperatures and Unicode hostnames. Signed packets require synchronized clocks and fresh integer-second timestamps; duplicate or older timestamps for the same device/type are rejected.
 
 The CLI can use the same secret through `TEMP_MONITOR_SHARED_SECRET` or `--shared-secret`.
 
@@ -345,7 +349,7 @@ sudo systemctl restart temp-monitor
 
 ### `/temps` does not load in a browser
 
-- If you are checking the remote broadcaster Pi directly, include the broadcaster TCP port: `http://192.168.1.201:9876/temps`.
+- Direct remote browser access requires `TEMP_MONITOR_HTTP_HOST=0.0.0.0`; then include the broadcaster TCP port: `http://192.168.1.201:9876/temps`.
 - If you are checking the MagicMirror aggregate endpoint, include the URL scheme and MagicMirror HTTP port. For the default MagicMirror port, use `http://192.168.1.201:8080/temps`, not `192.168.1.201/temps`.
 - Use the MagicMirror host IP address for the aggregate endpoint, and the remote Pi IP address for the direct broadcaster endpoint.
 - Confirm MagicMirror itself is reachable from the same browser, for example `http://192.168.1.201:8080/`.
@@ -411,8 +415,8 @@ You can customize the appearance by editing `MMM-RemoteTempMonitor.css` in the m
 - **MagicMirror²**: Version 2.x
 - **Remote Devices**: Raspberry Pi (all models with thermal sensor)
 - **Operating System**: Raspberry Pi OS (formerly Raspbian)
-- **Node.js**: Version 14 or higher
-- **Python**: Version 3.x
+- **Node.js**: Version 22 or higher
+- **Python**: Version 3.9 or higher
 
 ## Contributing
 
@@ -465,18 +469,19 @@ If you encounter issues or have questions:
 
 ## Development
 
-Run the lightweight JavaScript and Python unit tests before submitting changes:
+CI runs the following tests plus JavaScript, Python, and shell syntax checks in
+one job. Superseded runs on the same branch are cancelled.
 
 ```bash
 npm test
-
-python3 -m unittest discover -s tests
-
-# Run status broadcaster to check for issues (in separate terminal)
-cd remote-service/Pi
-cronicle --port 9876 --interval 5
+python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s test -p 'test_*.py' -v
 ```
 
-## Changelog
-python3 -m unittest discover -s tests
-```
+## Version 1.2.0
+
+Repairs Pi installation and transactional updates, status collection and display,
+cross-platform packet signing, stale-device cleanup, bounded device storage and
+HTTP workers, listener recovery, and status test coverage. Status HTTP defaults to
+9878; all direct broadcaster diagnostics default to loopback. See
+[the status guide](README-STATUS.md) for migration and update instructions.

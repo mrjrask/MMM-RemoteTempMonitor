@@ -132,3 +132,7 @@ local_settings.py
 
 # Temporary files
 *.tmp
+
+# JavaScript protocol source
+!/lib/
+!/lib/protocol.js

@@ -75,6 +75,8 @@ test('isServiceOutdated compares versions and treats missing versions as outdate
 test('handleMessage flags devices running an outdated remote-service', () => {
   const helper = loadNodeHelper();
   helper.config = { latestServiceVersion: '1.1.0' };
+  helper.latestServiceVersion = '1.1.0';
+  helper.queueUpdate = () => {};
   helper.devices = {};
   helper.sendSocketNotification = () => {};
 
@@ -98,7 +100,8 @@ test('status broadcasts reach the status display and reject bad signatures', () 
   helper.statusDevices = {};
   const notifications = [];
   helper.sendSocketNotification = (kind, payload) => notifications.push([kind, payload]);
-  const data = { type: 'status', hostname: 'pi', device_id: 'pi-1', statusUpdateAvailable: true, statusClientUpdate: false };
+  helper.queueUpdate = (kind) => helper.sendSocketNotification(kind, { devices: Object.values(helper.statusDevices) });
+  const data = { timestamp: Math.floor(Date.now() / 1000), type: 'status', hostname: 'pi', device_id: 'pi-1', statusUpdateAvailable: true, statusClientUpdate: false };
   helper.handleMessage(Buffer.from(JSON.stringify(data)), { address: '10.0.0.5' });
   assert.equal(notifications.length, 0);
   const crypto = require('node:crypto');

@@ -29,7 +29,7 @@ test('sortDevices sorts by temperature and hostname', () => {
 
 test('handleMessage validates numbers and keys duplicate hostnames by address', () => {
   const devices = {};
-  const msg = Buffer.from(JSON.stringify({ type: 'temperature', hostname: 'pi', temperature: { celsius: '42.5', fahrenheit: '108.5' } }));
+  const msg = Buffer.from(JSON.stringify({ type: 'temperature', hostname: 'pi', temperature: { celsius: 42.5, fahrenheit: 108.5 } }));
   assert.equal(cli.handleMessage(msg, { address: '192.0.2.10' }, devices), true);
   assert.equal(cli.handleMessage(msg, { address: '192.0.2.11' }, devices), true);
   assert.deepEqual(Object.keys(devices).sort(), ['192.0.2.10:pi', '192.0.2.11:pi']);
@@ -41,7 +41,7 @@ test('validateTemperatureMessage rejects out-of-range and requires HMAC', () => 
   assert.equal(cli.validateTemperatureMessage({ ...base, temperature: { celsius: 200, fahrenheit: 392 } }).valid, false);
   assert.equal(cli.validateTemperatureMessage({ ...base, auth_token: 'secret' }, 'secret').valid, false);
 
-  const unsigned = { ...base };
+  const unsigned = { ...base, timestamp: Math.floor(Date.now() / 1000) };
   const hmac = crypto.createHmac('sha256', 'secret').update(JSON.stringify(unsigned)).digest('hex');
   assert.equal(cli.validateTemperatureMessage({ ...unsigned, hmac }, 'secret').valid, true);
 });

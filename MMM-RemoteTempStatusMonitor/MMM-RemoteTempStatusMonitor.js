@@ -55,6 +55,7 @@ Module.register("MMM-RemoteTempStatusMonitor", {
         headerRow.appendChild(deviceHeader);
 
         header.appendChild(headerRow);
+        wrapper.appendChild(header);
 
         // Status table body
         const body = document.createElement("tbody");
