@@ -13,6 +13,8 @@ Module.register("MMM-RemoteTempMonitor", {
         maxDeviceAge: 30000,          // Remove devices not seen for this long (ms)
         statusMaxDeviceAge: 1200000,   // Status broadcasts default to every ten minutes
         cleanupInterval: 10000,       // How often to check for stale devices (ms)
+        maxDevices: 256,               // Maximum remote identities per packet type
+        maxPacketAge: 120000,          // Signed-packet clock tolerance (ms)
         showFahrenheit: true,         // Show Fahrenheit temperature
         showCelsius: true,            // Show Celsius temperature
         sortBy: "temperature",        // Sort by: "hostname" or "temperature"
@@ -55,11 +57,16 @@ Module.register("MMM-RemoteTempMonitor", {
         this.pendingFadeIn = false;
         this.wrapperElement = null;
         this.pageRotationTimer = null;
+        this.pageTransitionTimer = null;
         this.startPageRotation();
         this.sendSocketNotification("CONFIG", this.config);
     },
 
     suspend: function() {
+        clearTimeout(this.pageTransitionTimer);
+        this.pageTransitionTimer = null;
+        this.isTransitioning = false;
+        if (this.wrapperElement) this.wrapperElement.classList.remove("is-fading");
         clearInterval(this.pageRotationTimer);
         this.pageRotationTimer = null;
     },
@@ -337,7 +344,8 @@ Module.register("MMM-RemoteTempMonitor", {
                 wrapper.classList.add("is-fading");
             }
             const fadeDuration = this.config.pageTransitionSpeed;
-            setTimeout(() => {
+            this.pageTransitionTimer = setTimeout(() => {
+                this.pageTransitionTimer = null;
                 this.currentPage = nextPage;
                 this.pendingFadeIn = true;
                 this.updateDom(0);

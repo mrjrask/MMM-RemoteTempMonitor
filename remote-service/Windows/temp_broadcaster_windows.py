@@ -4,9 +4,15 @@ Remote Temperature Monitor - Windows Broadcaster Service
 Broadcasts CPU temperature over UDP for MagicMirror module
 """
 
-import hashlib
-import hmac
 import json
+import sys
+from pathlib import Path
+
+try:
+    from broadcaster_common import sign_message, DiagnosticsServer
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from broadcaster_common import sign_message, DiagnosticsServer
 import logging
 import os
 import platform
@@ -21,7 +27,7 @@ except ImportError as exc:
     ) from exc
 
 # Keep in sync with remote-service/VERSION (checked by tests)
-SERVICE_VERSION = "1.1.0"
+SERVICE_VERSION = "1.2.0"
 
 # Configuration
 BROADCAST_PORT = 9876
@@ -132,12 +138,7 @@ class TemperatureBroadcaster:
 
     def _sign_message(self, message):
         """Create an HMAC signature for a temperature message."""
-        payload = json.dumps(message, separators=(",", ":"))
-        return hmac.new(
-            self.shared_secret.encode("utf-8"),
-            payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        return sign_message(message, self.shared_secret)
 
     def broadcast(self, message):
         """Send message via UDP broadcast or unicast targets"""
@@ -165,7 +166,7 @@ class TemperatureBroadcaster:
                 if temp is not None:
                     message = self.create_message(temp)
                     if message and self.broadcast(message):
-                        logger.info(
+                        logger.debug(
                             f"Broadcast: {self.hostname} - {temp}°C ({(temp * 9/5) + 32:.1f}°F)"
                         )
                 else:
@@ -177,6 +178,7 @@ class TemperatureBroadcaster:
             logger.info("Broadcaster stopped by user")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
+            raise
         finally:
             if self.sock:
                 self.sock.close()

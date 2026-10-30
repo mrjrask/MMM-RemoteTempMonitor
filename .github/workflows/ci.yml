@@ -1,49 +1,38 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
-
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
-
+permissions:
+  contents: read
 jobs:
-  node:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Syntax check
-        run: |
-          node --check MMM-RemoteTempMonitor.js
-          node --check MMM-RemoteTempStatusMonitor.js
-          node --check node_helper.js
-          node --check bin/remote-temp-monitor-cli.js
-      - name: Unit tests
-        run: npm test
-
-  python:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
+          node-version: 22
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Compile broadcaster scripts
-        run: python -m py_compile remote-service/*/*.py
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
-
-  shell:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Syntax check install scripts
-        run: bash -n remote-service/install.sh remote-service/Pi/*.sh remote-service/Mac/install.sh
+      - name: JavaScript syntax and tests
+        run: |
+          for script in MMM-RemoteTempMonitor.js MMM-RemoteTempStatusMonitor/*.js node_helper.js bin/*.js lib/*.js; do
+            node --check "$script"
+          done
+          npm test
+      - name: Python syntax and tests
+        run: |
+          python -m py_compile remote-service/*.py remote-service/*/*.py remote-service/Pi/install-full.sh
+          python -m unittest discover -s tests -v
+          python -m unittest discover -s test -p 'test_*.py' -v
+      - name: Shell syntax
+        run: |
+          for script in remote-service/install.sh remote-service/Pi/install.sh remote-service/Pi/update.sh remote-service/Mac/install.sh; do
+            bash -n "$script"
+          done

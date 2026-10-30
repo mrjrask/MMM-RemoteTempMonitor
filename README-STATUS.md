@@ -1,520 +1,110 @@
 # Remote Status Monitor
 
-## Overview
+The bundled companion module displays package and repository status received by
+`MMM-RemoteTempMonitor`:
 
-Remote Status Monitor is an optional addon for the [MMM-RemoteTempMonitor](README.md) MagicMirror module that provides visual status indicators for system updates on remote Raspberry Pi devices.
-
-**Note:** This is an addon. For the full installation, use `install-full.sh`. For temperature monitoring only, the `MMM-RemoteTempMonitor` module is sufficient.
-
-## Features
-
-### Status Indicators
-
-The status monitor displays two colored pulsing dots before device names:
-
-| Color | Meaning | Use Case |
-|-------|--------|----------|
-| 🟡 **Yellow** | APT package updates available | When `apt-get upgrade` would install packages |
-| 🔵 **Blue** | desk_display git changes detected | When the desk_display folder has unstaged/uncommitted changes |
-
-### Visual Design
-
-- **Pulse Timing**: 
-  - Yellow dots pulse every **2000ms** 
-  - Blue dots pulse every **1500ms**
-  - The different timing prevents visual synchronization
-- **Positioning**: Dots appear to the **left** of the device name, vertically centered
-- **Spacing**: Plenty of room is allocated for dots before device name text starts
-- **Device Column**: Only the device text column shifts when indicators appear; temperature columns remain fixed
-
-### Example Display
-
-```
-┌──────────────────────────────────────────────┐
-│ Device        ●● Device Name     35.2°C    │
-│               ●●  (Pi 5 | 2GB)  95.8°F     │
-└──────────────────────────────────────────────┘
-Legend: ●● = Status dots (left of device name)
-        = Temperature columns (fixed position)
-```
-
-## Git Changes Detection (Blue Dot)
-
-### How It Works
-
-The blue status dot is activated when the `desk_display` folder contains git changes that haven't been committed:
-
-1. **Folder Location**: `/home/pi/desk_display`
-2. **Git Check**: The status broadcaster runs `git status --porcelain -s` every check cycle
-3. **Detection**: Any unstaged, uncommitted changes will trigger the blue dot
-
-### Git Status Types Detected
-
-The blue dot will appear when any of these git changes are detected:
-
-| Git Symbol | Meaning | Visual |
-|-----------|---------|--------|
-| `M` | Modified files | Blue dot |
-| `A` | Added files | Blue dot |
-| `D` | Deleted files | Blue dot |
-| `R` | Renamed files | Blue dot |
-| `C` | Copied files | Blue dot |
-| `T` | Type changed | Blue dot |
-| `U` | Unmerged files | Blue dot |
-| `?` | Untracked files | Blue dot |
-
-### Important Notes
-
-- **Folder Must Exist**: If `/home/pi/desk_display` doesn't exist, the blue dot will **never** appear
-- **Staged Changes Excluded**: Files that are staged (added to index) won't trigger the blue dot
-- **Committed Changes**: If changes are committed to git, the blue dot will be cleared
-- **Git Must Be Installed**: The Pi must have the `git` command available
-
-### Example Scenarios
-
-#### Scenario 1: Desk Display with Uncommitted Changes
-- **Blue Dot**: Active
-- **Visual**: `● Device Name (Pi 5 | 2GB)`
-
-#### Scenario 2: Desk Display with Committed Changes Only
-- **Blue Dot**: Inactive (hidden)
-- **Visual**: `Device Name (Pi 5 | 2GB)`
-
-#### Scenario 3: No Desk Display Folder
-- **Blue Dot**: Never appears
-- **Visual**: `Device Name (Pi 5 | 2GB)`
-
-#### Scenario 4: Both Yellow and Blue Dots
-- **Yellow Dot**: Active (APT updates available)
-- **Blue Dot**: Active (git changes in desk_display)
-- **Visual**: `●● Device Name (Pi 5 | 2GB)`
+- Yellow: installed-package database issues or available APT upgrades.
+- Cyan: uncommitted changes in the configured local repository. This does not
+  check GitHub for new commits or observe MagicMirror notifications.
 
 ## Installation
 
-To load the status display as a separate MagicMirror module, link the bundled module directory into MagicMirror's `modules` directory and add `MMM-RemoteTempStatusMonitor` to `config.js` alongside `MMM-RemoteTempMonitor`:
+On each Raspberry Pi broadcaster host:
 
 ```bash
-ln -s ~/MagicMirror/modules/MMM-RemoteTempMonitor/MMM-RemoteTempStatusMonitor ~/MagicMirror/modules/MMM-RemoteTempStatusMonitor
-```
-
-The temperature module receives status broadcasts and forwards updates to the status display. Keep the temperature module enabled and set its `sharedSecret` to the broadcaster's secret when signing is enabled. The status expiry defaults to 20 minutes (`statusMaxDeviceAge`) to accommodate ten-minute status broadcasts.
-
-### Full Installation (Recommended)
-
-```bash
-# From the remote-service/Pi directory
-sudo ./install-full.sh
-```
-
-This installs:
-1. **Temperature Monitor Service** (`temp-monitor.service`)
-   - Broadcasts CPU temperatures on UDP port 9876
-2. **Status Monitor Service** (`status-monitor.service`)
-   - Checks for apt updates every 10 minutes (configurable)
-   - Checks for git changes in desk_display folder (configurable)
-   - Broadcasts status to the same UDP port
-
-### Minimal Installation
-
-```bash
-# From the remote-service/Pi directory  
+cd ~/MMM-RemoteTempMonitor/remote-service/Pi
 sudo ./install.sh
 ```
 
-This installs only the temperature monitor service.
+This installs both broadcasters. `install.sh` is a Bash wrapper around the Python
+`install-full.sh`; the latter can be run with `sudo python3 install-full.sh`.
+The account invoking sudo is used for new services. Existing service accounts are
+preserved. For installation directly as root, select an existing account with
+`TEMP_MONITOR_SERVICE_USER` (the fallback is `pi`).
 
-## Configuration
-
-Edit the appropriate environment file based on your platform:
-
-### Raspberry Pi
-
-- Temperature: `/etc/default/temp-monitor`
-- Status: `/etc/default/temp-monitor-status`
-
-### Windows
-
-- Temperature: `remote-temp-monitor.ini`
-- Status: `status-monitor.ini`
-
-### Key Settings
+On the MagicMirror host:
 
 ```bash
-# Temperature broadcast port (must match MagicMirror module)
-TEMP_MONITOR_PORT=9876
-
-# Status broadcast port (must match MagicMirror status module)  
-STATUS_BROADCAST_PORT=9876
-
-# Check interval for apt/git updates (seconds)
-STATUS_BROADCAST_CHECK_INTERVAL=600  # Default: 10 minutes
-
-# Shared secret for authenticated broadcasts (optional)
-TEMP_MONITOR_SHARED_SECRET=your-secret
-STATUS_BROADCAST_SHARED_SECRET=your-secret
-
-# Broadcast targets (comma-separated or <broadcast>)
-TEMP_MONITOR_TARGETS=192.168.1.0/24
-STATUS_BROADCAST_TARGETS=192.168.1.0/24
-
-# HTTP diagnostics ports (optional)
-TEMP_MONITOR_HTTP_PORT=8080
-STATUS_BROADCAST_HTTP_PORT=8080
+cd ~/MagicMirror/modules
+ln -s MMM-RemoteTempMonitor/MMM-RemoteTempStatusMonitor MMM-RemoteTempStatusMonitor
 ```
 
-### Desk Display Configuration
+Enable both `MMM-RemoteTempMonitor` and `MMM-RemoteTempStatusMonitor` in MagicMirror.
+The temperature module receives both packet types and forwards status to the
+companion. All temperature-module instances must share helper/listener settings;
+conflicting configurations are rejected without changing the active listener.
 
-To enable blue dot monitoring:
+## Settings
 
-1. **Create the folder** on your Raspberry Pi:
-   ```bash
-   mkdir -p /home/pi/desk_display
-   ```
+Edit `/etc/default/temp-monitor-status`, then restart `status-monitor.service`.
 
-2. **Initialize git repository**:
-   ```bash
-   cd /home/pi/desk_display
-   git init
-   ```
+| Variable | Default | Purpose |
+|---|---|---|
+| `STATUS_BROADCAST_PORT` | `9876` | UDP destination; match the receiver's `port` |
+| `STATUS_BROADCAST_INTERVAL` | `60` | Seconds between status broadcasts |
+| `STATUS_BROADCAST_CHECK_INTERVAL` | `600` | Seconds between expensive package/git checks |
+| `STATUS_BROADCAST_HTTP_PORT` | `9878` | TCP diagnostics port; `0` or empty disables HTTP |
+| `STATUS_BROADCAST_HTTP_HOST` | `127.0.0.1` | Diagnostics bind address |
+| `STATUS_BROADCAST_TARGETS` | broadcast | Comma-separated unicast/broadcast addresses |
+| `STATUS_BROADCAST_SHARED_SECRET` | empty | Same secret as receiver `sharedSecret` |
+| `STATUS_BROADCAST_REPO` | service user's `~/desk_display` | Repository checked for uncommitted changes |
 
-3. **Add initial content and commit**:
-   ```bash
-   # Add files to track
-   git add .
-   git commit -m "Initial commit"
-   ```
+Checks use `dpkg --audit`, `apt-get -s upgrade`, and `git status --porcelain -s`.
+APT results reflect the system's existing package lists; this service does not
+run privileged `apt-get update` or install packages. Results are cached for the
+check interval, but a fresh status packet is emitted every broadcast interval.
 
-4. **Make changes** to trigger blue dot:
-   ```bash
-   # Edit files, add new files, etc.
-   # Blue dot will appear on MagicMirror when changes are unstaged
-   ```
+The receiver expires status devices after `statusMaxDeviceAge` (default 20 minutes).
+Signed packets require synchronized clocks, a timestamp within `maxPacketAge`
+(default two minutes), and a newer timestamp than the preceding accepted packet
+for that device and type. Repeated packets do not refresh last-seen time.
 
-5. **Commit changes** to clear blue dot:
-   ```bash
-   git add .
-   git commit -m "Update desk display"
-   ```
+## Diagnostics
 
-## How It Works
-
-### APT Update Detection (Yellow Dot)
-
-1. **Periodic Checks**: Every 10 minutes (configurable), the status broadcaster:
-   - Runs `dpkg --verify` to check for broken packages
-   - Runs `apt-get upgrade --dry-run` to check for upgrades
-2. **Status Determination**:
-   - If `dpkg --verify` returns errors → Sets `statusUpdateAvailable: true`
-   - If `apt-get upgrade` would install packages → Sets `statusUpdateAvailable: true`
-3. **Broadcast**: Sends status to configured UDP targets
-4. **MagicMirror Display**: Shows yellow pulsing dot before affected device names
-
-### Git Changes Detection (Blue Dot)
-
-1. **Periodic Checks**: Every 10 minutes (configurable), the status broadcaster:
-   - Checks if `/home/pi/desk_display` exists
-   - Runs `git status --porcelain -s` to check for changes
-2. **Status Determination**:
-   - If desk_display folder exists and has unstaged changes → Sets `statusClientUpdate: true`
-   - If desk_display folder doesn't exist → `statusClientUpdate: false`
-3. **Broadcast**: Sends status to configured UDP targets
-4. **MagicMirror Display**: Shows blue pulsing dot before affected device names
-
-### Status Determination Flow
-
-```
-┌─────────────────────────────────┐
-│   Check APT Updates (Yellow)    │
-│   └─ dpkg --verify              │
-│   └─ apt-get upgrade --dry-run  │
-└─────────────────────────────────┘
-                 │
-                 ▼
-        ┌─────────────────┐
-        │statusUpdateAvailable │
-        └─────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────┐
-│   Check Git Changes (Blue)      │
-│   └─ /home/pi/desk_display      │
-│   └─ git status --porcelain -s  │
-└─────────────────────────────────┘
-                 │
-                 ▼
-        ┌─────────────────┐
-        │statusClientUpdate│
-        └─────────────────┘
-```
-
-### MagicMirror Display
-
-The status monitor translates the flags into visual indicators:
-
-| Flag | Visual Indicator | Color |
-|------|------------------|-------|
-| `statusUpdateAvailable: true` | ● (yellow dot) | `#FFFF00` |
-| `statusClientUpdate: true` | ○ (blue dot) | `#00FFFF` |
-| Both flags true | ●● (both dots) | Yellow + Blue |
-
-## Service Management
-
-### Check Status
+From the broadcaster itself:
 
 ```bash
-# Check status
-sudo systemctl status temp-monitor
-sudo systemctl status status-monitor
+curl http://127.0.0.1:9878/status
+sudo systemctl status status-monitor.service
+sudo journalctl -u status-monitor.service -n 50
 ```
 
-### View Logs
+Temperature diagnostics use TCP `9876`; MagicMirror aggregate diagnostics use TCP
+`9877`. Status diagnostics use TCP `9878`. Legacy status configurations specifying
+HTTP port `9876` are redirected to `9878` with a warning to prevent conflicts.
+
+HTTP diagnostics bind only to loopback by default. To allow direct browser access
+from a trusted LAN, set `STATUS_BROADCAST_HTTP_HOST=0.0.0.0`. That endpoint has no
+HTTP authentication; UDP signing does not protect it. HTTP workers are capped at
+eight, with five-second connection timeouts.
+
+## Updates and recovery
 
 ```bash
-# Temperature service logs
-sudo journalctl -u temp-monitor -f
-
-# Status service logs
-sudo journalctl -u status-monitor -f
+cd ~/MMM-RemoteTempMonitor
+git pull --ff-only
+sudo ./remote-service/Pi/update.sh
 ```
 
-### Control Service
+The updater works from any directory and updates the temperature service plus the
+status service if installed. It validates sources first, writes replacements
+atomically, checks service activity over three seconds, and restores previous
+files and service state on failure. Existing environment files are preserved.
+Three backups per changed file are retained. A passing startup check cannot
+predict later hardware, network, or runtime failures; systemd restarts crashed
+services.
+
+## Companion appearance
+
+`updateAvailableColor`, `updateAvailableShadow`, `clientUpdateColor`, and
+`clientUpdateShadow` control dot colors. `updatePulseDuration` (2000 ms) and
+`clientPulseDuration` (1500 ms) control pulse durations. The header and names remain
+visible when both indicators are off.
+
+## Tests
 
 ```bash
-# Start
-sudo systemctl start status-monitor
-
-# Stop
-sudo systemctl stop status-monitor
-
-# Restart
-sudo systemctl restart status-monitor
-
-# Enable on boot
-sudo systemctl enable status-monitor
+npm test
+python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s test -p 'test_*.py' -v
 ```
-
-## HTTP Endpoints
-
-Each device exposes an HTTP endpoint for viewing status directly in a browser:
-
-```
-http://<raspberry-pi-ip>:9877/status
-```
-
-Response format:
-
-```json
-{
-    "type": "status",
-    "hostname": "raspberrypi",
-    "device_id": "192.168.1.100",
-    "timestamp": 1699900000,
-    "statusUpdateAvailable": true,
-    "statusClientUpdate": false,
-    "lastSeen": 1699900000,
-    "pi_model": "5",
-    "pi_ram": "2GB"
-}
-```
-
-## Configuration Options
-
-### For Status Broadcaster (Edit env file)
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `STATUS_BROADCAST_PORT` | UDP port for status broadcasts | `9876` |
-| `STATUS_BROADCAST_HTTP_PORT` | HTTP diagnostics port | `9876` |
-| `STATUS_BROADCAST_SHARED_SECRET` | HMAC shared secret | `` (empty) |
-| `STATUS_BROADCAST_TARGETS` | Comma-separated broadcast targets | `<broadcast>` |
-| `STATUS_BROADCAST_CHECK_INTERVAL` | How often to check for updates (seconds) | `600` (10 min) |
-
-### For Status Monitor Module (Edit config.js)
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `statusMaxDeviceAge` | Set on `MMM-RemoteTempMonitor`; remove status devices after this many ms | `1200000` |
-| `updatePulseDuration` | Yellow dot pulse duration (ms) | `2000` |
-| `clientPulseDuration` | Blue dot pulse duration (ms) | `1500` |
-| `updateAvailableColor` | Color for update dot | `#FFFF00` |
-| `updateAvailableShadow` | Shadow color for update dot | `rgba(255,255,0,0.6)` |
-| `clientUpdateColor` | Color for client update dot | `#00FFFF` |
-| `clientUpdateShadow` | Shadow color for client update dot | `rgba(0,255,255,0.6)` |
-
-## Troubleshooting
-
-### Status Monitor not showing
-
-1. **Check status service is running:**
-   ```bash
-   sudo systemctl status status-monitor
-   ```
-
-2. **Check service logs:**
-   ```bash
-   sudo journalctl -u status-monitor -f
-   ```
-
-3. **Verify status endpoint works in browser:**
-   ```
-   http://<raspberry-pi-ip>:9877/status
-   ```
-
-### Status broadcasts not reaching MagicMirror
-
-1. **Check targets configuration:**
-   - Targets should include all MagicMirror hosts
-   - Or use `<broadcast>` for local network
-   - Verify in `/etc/default/temp-monitor-status`
-
-2. **Check for firewall blocks:**
-   ```bash
-   sudo ufw status
-   ```
-
-3. **Verify same network:**
-   All devices and MagicMirror must be on the same subnet
-
-### Status checks too slow?
-
-The status broadcaster performs system checks which can take time:
-- `dpkg --verify`: ~2 seconds
-- `apt-get upgrade --dry-run`: ~60 seconds
-- `git status --porcelain -s`: ~5 seconds
-
-**To slow down checks**, increase the check interval:
-```bash
-sudo nano /etc/default/temp-monitor-status
-# Change STATUS_BROADCAST_CHECK_INTERVAL=600 to a higher value
-```
-
-**To speed up checks**, reduce the interval:
-```bash
-sudo nano /etc/default/temp-monitor-status  
-# Change STATUS_BROADCAST_CHECK_INTERVAL=600 to a lower value
-```
-
-### Desk Display not showing in MagicMirror
-
-1. **Check folder exists:**
-   ```bash
-   ls -la /home/pi/desk_display
-   ```
-
-2. **Initialize git if needed:**
-   ```bash
-   cd /home/pi/desk_display
-   git init
-   git add .
-   git commit -m "Initial"
-   ```
-
-3. **Make changes:**
-   ```bash
-   # Edit/add files in desk_display
-   ```
-
-### Blue dot showing when it shouldn't
-
-1. **Check git is installed:**
-   ```bash
-   which git
-   ```
-
-2. **Check if changes are staged:**
-   ```bash
-   cd /home/pi/desk_display
-   git status
-   ```
-
-3. **Commit changes to clear:**
-   ```bash
-   git add .
-   git commit -m "Update"
-   ```
-
-### Both dots pulsing together?
-
-This shouldn't happen - the dots pulse at different frequencies:
-- Yellow: Every 2000ms
-- Blue: Every 1500ms
-
-If this is occurring, check:
-1. MagicMirror's CSS is overriding the animations
-2. Pulse durations in config are the same (they should differ)
-3. System clock is not synchronized across devices
-
-## Security
-
-### Shared Secret Authentication
-
-To prevent unauthorized devices from joining the network:
-
-1. **Set shared secret on all broadcasters:**
-   ```bash
-   TEMP_MONITOR_SHARED_SECRET=your-secret-123
-   STATUS_BROADCAST_SHARED_SECRET=your-secret-123
-   ```
-
-2. **Set same secret in MagicMirror config:**
-   ```javascript
-   sharedSecret: "your-secret-123"
-   ```
-
-Broadcast messages are signed with HMAC-SHA256 using the secret key, but the secret itself is never transmitted.
-
-### Network Security
-
-- Only use on trusted local networks
-- The module broadcasts unencrypted data
-- Consider using unicast targets:
-  ```bash
-  STATUS_BROADCAST_TARGETS=192.168.1.100,192.168.1.101
-  ```
-
-## Compatibility
-
-| Component | Requirement |
-|-----------|-------------|
-| MagicMirror | Version 2.x |
-| Status Module | Requires `MMM-RemoteTempMonitor` module |
-| Remote Devices | Raspberry Pi with apt and git installed |
-| System | Raspberry Pi OS (recommended) |
-| Node.js | Version 18 or higher |
-| Python | Version 3.x |
-
-## Comparison: Full vs Minimal Installation
-
-| Feature | install.sh (Minimal) | install-full.sh (Full) |
-|---------|---------------------|------------------------|
-| Temperature Monitor | ✓ | ✓ |
-| Status Monitor | ✗ | ✓ |
-| APT Update Detection | ✗ | ✓ |
-| Git Check (desk_display) | ✗ | ✓ |
-| System Checks | Limited | Full |
-| Services Running | 1 | 2 |
-| CPU Impact | Low | Moderate (during checks) |
-
-**Recommendation:** Use `install-full.sh` if you want update indicators on your MagicMirror.
-
-## Contributing
-
-Contributions welcome! For the status monitor specifically:
-
-- Improve apt/package detection accuracy
-- Add support for other package managers (apk, pacman, etc.)
-- Add support for client update detection
-- Enhance visual design
-- Improve configuration options
-
-## License
-
-MIT License - See the main [README.md](README.md) for details.
-
----
-
-## Links
-
-- [Main README](README.md) - For temperature monitoring features
-- [MMM-RemoteTempMonitor](README.md) - Temperature display module
-- [Status Broadcaster](status-broadcaster.md) - Detailed status service documentation

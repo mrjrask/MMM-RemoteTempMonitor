@@ -73,7 +73,8 @@
 }
 
 /* Visible status dot - starts pulsing */
-.mmm-remote-temp-status-monitor .status-dot.visible {
+.mmm-remote-temp-status-monitor .status-update-dot.visible .status-dot,
+.mmm-remote-temp-status-monitor .status-client-dot.visible .status-dot {
     opacity: 1;
     /* Yellow dots pulse at 2s */
     /* Blue dots pulse at 1.5s - different timing to avoid sync */

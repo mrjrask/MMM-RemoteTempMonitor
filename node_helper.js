@@ -8,7 +8,7 @@ const dgram = require("dgram");
 const os = require("os");
 const fs = require("fs");
 const { execFile } = require("child_process");
-const crypto = require("crypto");
+const protocol = require("./lib/protocol");
 const http = require("http");
 const path = require("path");
 
@@ -42,12 +42,20 @@ module.exports = NodeHelper.create({
 
     start: function() {
         this.started = false;
-        this.devices = {};
+        this.stopping = false;
+        this.retryTimer = null;
+        this.publishTimer = null;
+        this.pendingUpdates = new Set();
+        this.latestServiceVersion = null;
+        this.packetWindow = 0;
+        this.packetCount = 0;
+        this.lastPacketWarning = 0;
+        this.devices = Object.create(null);
         this.server = null;
         this.config = null;
         this.localMonitorTimer = null;
         this.cleanupTimer = null;
-        this.statusDevices = {};
+        this.statusDevices = Object.create(null);
         this.tempsEndpointRegistered = false;
         this.aggregateHttpServer = null;
         this.aggregateHttpEndpointPath = null;
@@ -57,12 +65,31 @@ module.exports = NodeHelper.create({
 
     socketNotificationReceived: function(notification, payload) {
         if (notification === "CONFIG") {
-            this.config = payload;
+            if (!payload || typeof payload !== "object") return;
+            const numericSettings = { port: [1, 65535], updateInterval: [100, 3600000], cleanupInterval: [100, 3600000], maxDevices: [1, 4096], maxPacketAge: [1000, 3600000], maxDeviceAge: [1000, 86400000], statusMaxDeviceAge: [1000, 86400000] };
+            for (const [key, [minimum, maximum]] of Object.entries(numericSettings)) {
+                if (payload[key] !== undefined && (!Number.isInteger(payload[key]) || payload[key] < minimum || payload[key] > maximum)) {
+                    this.sendSocketNotification("CONFIG_ERROR", `Invalid ${key}`);
+                    return;
+                }
+            }
+            if (this.config) {
+                const keys = ["port", "sharedSecret", "snapshotToken", "aggregatePort", "aggregateHost", "aggregateEndpointPath", "tempsEndpointPath", "monitorLocalHost", "updateInterval", "cleanupInterval", "maxDeviceAge", "statusMaxDeviceAge", "maxDevices", "maxPacketAge", "latestServiceVersion"];
+                if (keys.some(key => JSON.stringify(this.config[key]) !== JSON.stringify(payload[key]))) {
+                    console.error("[MMM-RemoteTempMonitor] Conflicting helper configuration; all instances must share listener settings");
+                    this.sendSocketNotification("CONFIG_ERROR", "All instances must share helper settings");
+                    return;
+                }
+            } else {
+                this.config = { ...payload };
+                this.latestServiceVersion = this.getLatestServiceVersion();
+            }
             if (!this.started) {
                 this.registerTempsEndpoint();
                 this.startAggregateHttpServer();
                 this.startListening();
                 this.started = true;
+                this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
             } else {
                 this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
                 this.sendSocketNotification("STATUS_UPDATE", { devices: Object.values(this.statusDevices) });
@@ -71,14 +98,18 @@ module.exports = NodeHelper.create({
     },
 
     startListening: function() {
+        if (this.stopping || this.server) return;
         const port = this.config.port || 9876;
 
         try {
             this.server = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
-            this.server.on('error', (err) => {
-                console.error(`[MMM-RemoteTempMonitor] Server error: ${err.stack}`);
-                this.server.close();
+            const server = this.server;
+            server.on('error', (err) => {
+                console.error(`[MMM-RemoteTempMonitor] Server error: ${err.message}`);
+                try { server.close(); } catch (_) { /* Already closed or not bound. */ }
+                if (this.server === server) this.server = null;
+                this.scheduleListenerRetry();
             });
 
             this.server.on('message', (msg, rinfo) => {
@@ -86,12 +117,12 @@ module.exports = NodeHelper.create({
             });
 
             this.server.on('listening', () => {
-                const address = this.server.address();
+                const address = server.address();
                 console.log(`[MMM-RemoteTempMonitor] UDP listener started on port ${address.port}`);
 
                 // Enable broadcast reception
                 try {
-                    this.server.setBroadcast(true);
+                    server.setBroadcast(true);
                 } catch (e) {
                     console.error(`[MMM-RemoteTempMonitor] Could not set broadcast: ${e}`);
                 }
@@ -100,14 +131,47 @@ module.exports = NodeHelper.create({
             this.server.bind(port);
 
             // Set up periodic cleanup of stale devices
-            this.startCleanupTimer();
-            if (this.config.monitorLocalHost) {
+            if (!this.cleanupTimer) this.startCleanupTimer();
+            if (this.config.monitorLocalHost && !this.localMonitorTimer) {
                 this.startLocalMachineMonitor();
             }
 
         } catch (err) {
             console.error(`[MMM-RemoteTempMonitor] Failed to start UDP listener: ${err}`);
+            if (this.server) { try { this.server.close(); } catch (_) {} }
+            this.server = null;
+            this.scheduleListenerRetry();
         }
+    },
+
+    scheduleListenerRetry: function() {
+        if (this.stopping || this.retryTimer) return;
+        this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            this.startListening();
+        }, 5000);
+    },
+
+    warnInvalidPacket: function() {
+        if (Date.now() - (this.lastPacketWarning || 0) < 10000) return;
+        this.lastPacketWarning = Date.now();
+        console.warn("[MMM-RemoteTempMonitor] Ignored invalid packet(s)");
+    },
+
+    queueUpdate: function(kind) {
+        if (this.stopping) return;
+        this.pendingUpdates = this.pendingUpdates || new Set();
+        this.pendingUpdates.add(kind);
+        if (this.publishTimer) return;
+        this.publishTimer = setTimeout(() => {
+            this.publishTimer = null;
+            const pending = [...this.pendingUpdates];
+            this.pendingUpdates.clear();
+            for (const notification of pending) {
+                this.sendSocketNotification(notification, notification === "STATUS_UPDATE"
+                    ? { devices: Object.values(this.statusDevices) } : this.getDeviceList());
+            }
+        }, 250);
     },
 
     getLatestServiceVersion: function() {
@@ -123,6 +187,10 @@ module.exports = NodeHelper.create({
 
     handleMessage: function(msg, rinfo) {
         try {
+            if (this.stopping || msg.length > 4096) return;
+            const window = Math.floor(Date.now() / 1000);
+            if (this.packetWindow !== window) { this.packetWindow = window; this.packetCount = 0; }
+            if (++this.packetCount > 100) return;
             const rawMessage = msg.toString();
             const data = JSON.parse(rawMessage);
             if (data && data.type === "status") {
@@ -132,12 +200,14 @@ module.exports = NodeHelper.create({
             const validated = this.validateTemperatureMessage(data, rawMessage);
 
             if (!validated.valid) {
-                console.warn(`[MMM-RemoteTempMonitor] Ignored invalid packet from ${rinfo.address}: ${validated.reason}`);
+                this.warnInvalidPacket();
                 return;
             }
 
             const deviceId = data.device_id || `${rinfo.address}:${data.hostname}`;
 
+            protocol.pruneDevices(this.devices, this.config.maxDeviceAge || 30000);
+            if (!protocol.admitDevice(this.devices, deviceId, data, this.config)) return;
             // Update device information
             this.devices[deviceId] = {
                 deviceId,
@@ -149,29 +219,30 @@ module.exports = NodeHelper.create({
                 platform: data.platform || null,
                 cpu_arch: data.cpu_arch || null,
                 service_version: data.service_version || null,
-                serviceUpdateAvailable: isServiceOutdated(data.service_version, this.getLatestServiceVersion()),
+                serviceUpdateAvailable: isServiceOutdated(data.service_version, this.latestServiceVersion),
+                packetTimestamp: data.timestamp,
                 lastSeen: Date.now(),
                 ip: rinfo.address
             };
             this.latestUpdateAt = Date.now();
 
             // Send update to frontend
-            this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
-
-            console.log(`[MMM-RemoteTempMonitor] Received from ${data.hostname} (${rinfo.address}): ${validated.celsius}°C`);
+            this.queueUpdate("TEMPERATURE_UPDATE");
         } catch (err) {
-            console.error(`[MMM-RemoteTempMonitor] Error parsing message: ${err.message}`);
+            this.warnInvalidPacket();
         }
     },
 
     handleStatusMessage: function(data, rawMessage, rinfo) {
-        if (typeof data.hostname !== "string" || !data.hostname.trim() ||
+        if (!protocol.validIdentity(data) ||
             typeof data.statusUpdateAvailable !== "boolean" || typeof data.statusClientUpdate !== "boolean" ||
             !this.isMessageAuthenticated(data, rawMessage)) {
-            console.warn(`[MMM-RemoteTempMonitor] Ignored invalid status packet from ${rinfo.address}`);
+            this.warnInvalidPacket();
             return;
         }
         const deviceId = String(data.device_id || `${rinfo.address}:${data.hostname}`);
+        protocol.pruneDevices(this.statusDevices, this.config.statusMaxDeviceAge || 1200000);
+        if (!protocol.admitDevice(this.statusDevices, deviceId, data, this.config)) return;
         this.statusDevices[deviceId] = {
             deviceId,
             hostname: data.hostname,
@@ -179,53 +250,21 @@ module.exports = NodeHelper.create({
             pi_ram: data.pi_ram || null,
             statusUpdateAvailable: data.statusUpdateAvailable,
             statusClientUpdate: data.statusClientUpdate,
+            packetTimestamp: data.timestamp,
             lastSeen: Date.now()
         };
-        this.sendSocketNotification("STATUS_UPDATE", { devices: Object.values(this.statusDevices) });
+        this.queueUpdate("STATUS_UPDATE");
     },
 
-    validateTemperatureMessage: function(data, rawMessage) {
-        if (data.type !== "temperature" || !data.hostname || !data.temperature) {
-            return { valid: false, reason: "missing required temperature fields" };
-        }
-
-        if (!this.isMessageAuthenticated(data, rawMessage)) {
-            return { valid: false, reason: "authentication failed" };
-        }
-
-        const celsius = Number(data.temperature.celsius);
-        const fahrenheit = Number(data.temperature.fahrenheit);
-        if (!Number.isFinite(celsius) || !Number.isFinite(fahrenheit)) {
-            return { valid: false, reason: "temperature values must be finite numbers" };
-        }
-        if (celsius < -50 || celsius > 150) {
-            return { valid: false, reason: "celsius temperature outside expected range" };
-        }
-
-        return { valid: true, celsius, fahrenheit };
+    validateTemperatureMessage: function(data) {
+        return protocol.validateTemperatureMessage(data, this.config.sharedSecret, Math.min(this.config.maxPacketAge || 120000, this.config.maxDeviceAge || 30000));
     },
 
-    isMessageAuthenticated: function(data, rawMessage) {
-        const secret = this.config.sharedSecret;
-        if (!secret) {
-            return true;
-        }
-
-        if (!data.hmac) {
-            return false;
-        }
-
-        const unsigned = { ...data };
-        delete unsigned.hmac;
-        const expected = crypto.createHmac("sha256", secret).update(JSON.stringify(unsigned)).digest("hex");
-        return this.timingSafeStringEqual(data.hmac, expected);
+    isMessageAuthenticated: function(data) {
+        return protocol.isMessageAuthenticated(data, this.config.sharedSecret, this.config.maxPacketAge);
     },
 
-    timingSafeStringEqual: function(actual, expected) {
-        const actualBuffer = Buffer.from(String(actual));
-        const expectedBuffer = Buffer.from(String(expected));
-        return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
-    },
+    timingSafeStringEqual: protocol.timingSafeStringEqual,
 
     getDeviceList: function() {
         // Convert devices object to array
@@ -311,6 +350,9 @@ module.exports = NodeHelper.create({
             res.end(JSON.stringify({ error: "not_found", endpoint: endpointPath }));
         });
 
+        this.aggregateHttpServer.requestTimeout = 5000;
+        this.aggregateHttpServer.headersTimeout = 5000;
+        this.aggregateHttpServer.maxConnections = 32;
         this.aggregateHttpServer.on("error", (err) => {
             console.error(`[MMM-RemoteTempMonitor] Aggregate HTTP server error on port ${aggregatePort}: ${err.message}`);
         });
@@ -324,7 +366,7 @@ module.exports = NodeHelper.create({
     authorizeSnapshot: function(req, res) {
         const token = this.config.snapshotToken;
         const remote = req.socket && req.socket.remoteAddress;
-        if (token && req.headers.authorization === `Bearer ${token}`) return true;
+        if (token && protocol.timingSafeStringEqual(req.headers.authorization, `Bearer ${token}`)) return true;
         if (!token && (remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1")) return true;
         res.statusCode = 403;
         res.end("Forbidden");
@@ -363,13 +405,17 @@ module.exports = NodeHelper.create({
     startLocalMachineMonitor: function() {
         const interval = this.config.updateInterval || 5000;
 
+        const hostHardware = this.getLocalHostHardwareInfo();
+        let pending = false;
         const publishLocalTemperature = () => {
+            if (pending || this.stopping) return;
+            pending = true;
             this.readLocalCpuTemp((err, celsius) => {
-                if (err || Number.isNaN(celsius)) {
+                pending = false;
+                if (this.stopping || err || !Number.isFinite(celsius)) {
                     return;
                 }
 
-                const hostHardware = this.getLocalHostHardwareInfo();
 
                 this.devices.__local_machine__ = {
                     deviceId: "__local_machine__",
@@ -383,7 +429,7 @@ module.exports = NodeHelper.create({
                 };
                 this.latestUpdateAt = Date.now();
 
-                this.sendSocketNotification("TEMPERATURE_UPDATE", this.getDeviceList());
+                this.queueUpdate("TEMPERATURE_UPDATE");
             });
         };
 
@@ -452,6 +498,11 @@ module.exports = NodeHelper.create({
     },
 
     stop: function() {
+        this.stopping = true;
+        clearTimeout(this.retryTimer);
+        clearTimeout(this.publishTimer);
+        this.retryTimer = this.publishTimer = null;
+        if (this.pendingUpdates) this.pendingUpdates.clear();
         if (this.cleanupTimer) {
             clearInterval(this.cleanupTimer);
             this.cleanupTimer = null;
@@ -461,11 +512,13 @@ module.exports = NodeHelper.create({
             this.localMonitorTimer = null;
         }
         if (this.server) {
-            this.server.close();
+            try { this.server.close(); } catch (_) { /* Already closed. */ }
+            this.server = null;
             console.log("[MMM-RemoteTempMonitor] UDP listener stopped");
         }
         if (this.aggregateHttpServer) {
             this.aggregateHttpServer.close();
+            if (this.aggregateHttpServer.closeAllConnections) this.aggregateHttpServer.closeAllConnections();
             this.aggregateHttpServer = null;
             console.log("[MMM-RemoteTempMonitor] Aggregate HTTP server stopped");
         }

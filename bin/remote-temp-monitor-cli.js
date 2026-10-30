@@ -5,7 +5,7 @@
 
 const dgram = require("dgram");
 const os = require("os");
-const crypto = require("crypto");
+const protocol = require("../lib/protocol");
 
 const DEFAULTS = {
     port: 9876,
@@ -91,8 +91,8 @@ function parseArgs(argv) {
 }
 
 function parsePositiveInteger(value, label) {
-    const parsed = parseInt(value, 10);
-    if (Number.isNaN(parsed) || parsed <= 0) {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0 || (label === "port" && parsed > 65535)) {
         throw new Error(`--${label} must be a positive integer`);
     }
     return parsed;
@@ -171,6 +171,7 @@ function pad(value, width, alignRight = false) {
 
 function render(devicesById, config, status) {
     const now = Date.now();
+    protocol.pruneDevices(devicesById, config.maxDeviceAge, now);
     const devices = Object.values(devicesById).filter(device => now - device.lastSeen <= config.maxDeviceAge);
     const sortedDevices = sortDevices(devices, config.sortBy).slice(0, config.devicesPerPage);
 
@@ -219,59 +220,24 @@ function render(devicesById, config, status) {
     });
 }
 
-function timingSafeStringEqual(actual, expected) {
-    const actualBuffer = Buffer.from(String(actual));
-    const expectedBuffer = Buffer.from(String(expected));
-    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
-}
-
-function isMessageAuthenticated(data, secret) {
-    if (!secret) {
-        return true;
-    }
-
-    if (!data.hmac) {
-        return false;
-    }
-
-    const unsigned = { ...data };
-    delete unsigned.hmac;
-    const expected = crypto.createHmac("sha256", secret).update(JSON.stringify(unsigned)).digest("hex");
-    return timingSafeStringEqual(data.hmac, expected);
-}
-
-function validateTemperatureMessage(data, secret = "") {
-    if (data.type !== "temperature" || !data.hostname || !data.temperature) {
-        return { valid: false, reason: "missing required temperature fields" };
-    }
-
-    if (!isMessageAuthenticated(data, secret)) {
-        return { valid: false, reason: "authentication failed" };
-    }
-
-    const celsius = Number(data.temperature.celsius);
-    const fahrenheit = Number(data.temperature.fahrenheit);
-    if (!Number.isFinite(celsius) || !Number.isFinite(fahrenheit)) {
-        return { valid: false, reason: "temperature values must be finite numbers" };
-    }
-    if (celsius < -50 || celsius > 150) {
-        return { valid: false, reason: "celsius temperature outside expected range" };
-    }
-
-    return { valid: true, celsius, fahrenheit };
-}
+const validateTemperatureMessage = protocol.validateTemperatureMessage;
+const isMessageAuthenticated = protocol.isMessageAuthenticated;
 
 function handleMessage(msg, rinfo, devicesById, config = DEFAULTS) {
+    if (msg.length > 4096) return false;
     const data = JSON.parse(msg.toString());
-    const validated = validateTemperatureMessage(data, config.sharedSecret || "");
+    const validated = validateTemperatureMessage(data, config.sharedSecret || "", Math.min(config.maxPacketAge || 120000, config.maxDeviceAge || 30000));
 
     if (!validated.valid) {
         return false;
     }
 
     const deviceId = data.device_id || `${rinfo.address}:${data.hostname}`;
+    protocol.pruneDevices(devicesById, config.maxDeviceAge);
+    if (!protocol.admitDevice(devicesById, deviceId, data, config)) return false;
     devicesById[deviceId] = {
         deviceId,
+        packetTimestamp: data.timestamp,
         hostname: data.hostname,
         celsius: validated.celsius,
         fahrenheit: validated.fahrenheit,
@@ -296,7 +262,7 @@ function main() {
         process.exit(1);
     }
 
-    const devicesById = {};
+    const devicesById = Object.create(null);
     let status = "Waiting for temperature broadcasts...";
     const server = dgram.createSocket({ type: "udp4", reuseAddr: true });
 
@@ -310,7 +276,7 @@ function main() {
         try {
             if (handleMessage(msg, rinfo, devicesById, config)) {
                 status = `Last update received from ${rinfo.address}`;
-                render(devicesById, config, status);
+                // The refresh timer batches terminal rendering.
             }
         } catch (err) {
             status = `Ignored invalid packet from ${rinfo.address}: ${err.message}`;

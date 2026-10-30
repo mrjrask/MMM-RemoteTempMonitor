@@ -15,9 +15,15 @@ MIT Licensed
 """
 
 import socket
-import hashlib
-import hmac
 import json
+import sys
+from pathlib import Path
+
+try:
+    from broadcaster_common import sign_message, DiagnosticsServer
+except ModuleNotFoundError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from broadcaster_common import sign_message, DiagnosticsServer
 import time
 import platform
 import logging
@@ -25,16 +31,13 @@ import os
 import re
 import subprocess
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
-from pathlib import Path
-from datetime import datetime
 
 # Configuration
 BROADCAST_PORT = 9876
 BROADCAST_INTERVAL = 60  # seconds - base check interval
-DEFAULT_HTTP_PORT = 9876
-STATUS_FILE = "/tmp/remote-temp-status.json"
+DEFAULT_HTTP_PORT = 9878
 STATUS_CHECK_INTERVAL = 600  # Check for updates every 10 minutes (default)
 
 # Setup logging
@@ -72,11 +75,19 @@ class StatusBroadcaster:
     """Broadcasts system update status over UDP"""
 
     def __init__(self, port=BROADCAST_PORT, interval=BROADCAST_INTERVAL):
-        self.port = port
-        self.interval = interval
+        self.port = self._positive_setting("STATUS_BROADCAST_PORT", port, 65535)
+        self.interval = self._positive_setting("STATUS_BROADCAST_INTERVAL", interval)
+        self.check_interval = self._positive_setting("STATUS_BROADCAST_CHECK_INTERVAL", STATUS_CHECK_INTERVAL)
+        self.status_data = {}
+        self._last_check = None
+        self._cached_updates = (False, False)
+        self.status_lock = threading.Lock()
         self.hostname = platform.node()
         self.shared_secret = os.getenv("STATUS_BROADCAST_SHARED_SECRET", "").strip()
         self.http_port = parse_status_port(os.getenv("STATUS_BROADCAST_HTTP_PORT"))
+        if self.http_port == 9876:
+            logger.warning("Status HTTP port 9876 conflicts with temperature diagnostics; using 9878")
+            self.http_port = 9878
         self.sock = None
         self.http_server = None
         self.http_thread = None
@@ -86,6 +97,39 @@ class StatusBroadcaster:
         self.pi_ram = self.get_pi_ram()
         self._setup_socket()
         self._setup_http_server()
+
+    @staticmethod
+    def _positive_setting(name, default, maximum=None):
+        raw = os.getenv(name, str(default))
+        try:
+            value = int(raw)
+            if value <= 0 or (maximum is not None and value > maximum):
+                raise ValueError(raw)
+            return value
+        except ValueError:
+            raise ValueError(f"{name} must be a positive integer" + (f" <= {maximum}" if maximum else ""))
+
+    def get_status(self):
+        now = time.monotonic()
+        if self._last_check is None or now - self._last_check >= self.check_interval:
+            packages = self._check_dpkg_status()
+            self._cached_updates = (
+                packages["apt_updateAvailable"] or packages["apt_upgradeAvailable"],
+                self._check_system_updates(),
+            )
+            self._last_check = now
+        status = {
+            "hostname": self.hostname,
+            "device_id": self.device_id,
+            "pi_model": self.pi_model,
+            "pi_ram": self.pi_ram,
+            "lastSeen": int(time.time() * 1000),
+            "statusUpdateAvailable": self._cached_updates[0],
+            "statusClientUpdate": self._cached_updates[1],
+        }
+        with self.status_lock:
+            self.status_data = status
+        return status
 
     def _setup_socket(self):
         """Setup UDP broadcast socket"""
@@ -112,7 +156,8 @@ class StatusBroadcaster:
                     self.send_error(404, "Not Found")
                     return
 
-                body = json.dumps(broadcaster.status_data).encode("utf-8")
+                with broadcaster.status_lock:
+                    body = json.dumps(broadcaster.status_data).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
@@ -123,10 +168,10 @@ class StatusBroadcaster:
                 logger.debug("HTTP %s - %s", self.address_string(), format % args)
 
         try:
-            self.http_server = ThreadingHTTPServer(("0.0.0.0", self.http_port), StatusRequestHandler)
+            self.http_server = DiagnosticsServer((os.getenv("STATUS_BROADCAST_HTTP_HOST", "127.0.0.1"), self.http_port), StatusRequestHandler)
             self.http_thread = threading.Thread(target=self.http_server.serve_forever, daemon=True)
             self.http_thread.start()
-            logger.info(f"HTTP status endpoint available at http://0.0.0.0:{self.http_port}/status")
+            logger.info(f"HTTP status endpoint available on TCP port {self.http_port}/status")
         except Exception as e:
             logger.error(f"Failed to start HTTP endpoint on port {self.http_port}: {e}")
             self.http_server = None
@@ -274,33 +319,34 @@ class StatusBroadcaster:
             # Check for broken dependencies
             result["checking_time"] += 2
             output = subprocess.run(
-                ['dpkg', '--verify'],
+                ['dpkg', '--audit'],
                 capture_output=True,
                 text=True,
                 timeout=30
             )
             
-            if output.returncode != 0:
+            if output.returncode != 0 or output.stdout.strip():
                 result["apt_updateAvailable"] = True
                 result["checking_time"] += 1
-                logger.warning(f"dpkg --verify returned errors: {output.stdout[:100]}")
+                logger.warning(f"dpkg --audit reported issues: {output.stdout[:100]}")
 
             # Check for upgradable packages
             result["checking_time"] += 2
             output = subprocess.run(
-                ['apt-get', 'upgrade', '--dry-run'],
+                ['apt-get', '-s', 'upgrade'],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                env={**os.environ, 'LC_ALL': 'C'}
             )
             
             if output.returncode == 0:
                 # Count packages that would be upgraded/installed
-                lines = output.split('\n')
+                lines = output.stdout.splitlines()
                 for line in lines:
-                    if 'Preparing to unpack' in line:
+                    if line.startswith('Inst '):
                         result["apt_upgradeCount"] += 1
-                    elif 'Would install' in line:
+                    elif line.startswith('Remv '):
                         result["apt_upgradeCount"] += 1
                     elif '0 upgraded, 0 newly installed' in line:
                         break  # No upgrades available
@@ -327,7 +373,7 @@ class StatusBroadcaster:
         Check for git changes in the desk_display folder.
         Returns: Boolean indicating if there are uncommitted/staged changes
         """
-        desk_display_path = Path("/home/pi/desk_display")
+        desk_display_path = Path(os.getenv("STATUS_BROADCAST_REPO", str(Path.home() / "desk_display")))
         
         # Check if desk_display folder exists
         if not desk_display_path.exists():
@@ -355,45 +401,8 @@ class StatusBroadcaster:
                 logger.warning(f"Git status check failed: {output.stderr[:100]}")
                 return False
             
-            # Parse porcelain git status output
-            # Lines starting with " " (space) = staged changes
-            # Lines starting with "M" = modified files
-            # Lines starting with "A" = added files
-            # Lines starting with "D" = deleted files
-            # Lines starting with "R" = renamed files
-            # Lines starting with "C" = copied files
-            # Lines starting with "T" = type changed
-            # Lines starting with "C" = copied files
-            # Lines starting with "U" = unmerged files
-            # Lines starting with "!" = ignored files
-            # Lines starting with "?" = untracked files
-            
-            has_changes = False
-            
-            for line in output.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                
-                # Skip the first line which is usually a header
-                if not has_changes and (line.startswith('##') or line.startswith(' ')):
-                    continue
-                
-                # Check for various change types
-                if line.startswith('M') or \
-                   line.startswith('A') or \
-                   line.startswith('D') or \
-                   line.startswith('R') or \
-                   line.startswith('C') or \
-                   line.startswith('T') or \
-                   line.startswith('U') or \
-                   line.startswith('?'):
-                    has_changes = True
-                    logger.info(f"Found git changes in desk_display: {line[:50]}")
-                    break
-            
-            return has_changes
-            
+            return bool(output.stdout.strip())
+
         except subprocess.TimeoutExpired:
             logger.warning("Timeout checking git status for desk_display")
         except FileNotFoundError:
@@ -439,14 +448,6 @@ class StatusBroadcaster:
         logger.info(f"Pi RAM: {self.pi_ram}")
 
         try:
-            # Initial broadcast
-            status = self.get_status()
-            message = self.create_message(status)
-            if message and self.broadcast(message):
-                logger.info(f"Initial status: {self.hostname} - "
-                           f"update={status['statusUpdateAvailable']}, "
-                           f"client={status['statusClientUpdate']}")
-
             # Main loop - broadcast every interval
             while True:
                 status = self.get_status()
@@ -463,6 +464,7 @@ class StatusBroadcaster:
             logger.info("Status broadcaster stopped by user")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
+            raise
         finally:
             if self.http_server:
                 self.http_server.shutdown()
@@ -495,12 +497,7 @@ class StatusBroadcaster:
 
     def _sign_message(self, message):
         """Create an HMAC signature for a status message."""
-        payload = json.dumps(message, separators=(",", ":"))
-        return hmac.new(
-            self.shared_secret.encode("utf-8"),
-            payload.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        return sign_message(message, self.shared_secret)
 
 
 def main():

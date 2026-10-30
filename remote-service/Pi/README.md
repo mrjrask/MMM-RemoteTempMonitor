@@ -37,10 +37,12 @@ cd MMM-RemoteTempMonitor/remote-service/Pi
 sudo ./install.sh
 ```
 
-The installer is a Python 3 script kept at `install.sh` for compatibility, so this also works:
+The shell wrapper runs the Python 3 installer. You can also invoke it directly:
 ```bash
-sudo python3 install.sh
+sudo python3 install-full.sh
 ```
+
+The installer installs both temperature and status services. It uses the account invoking sudo for new services and preserves existing accounts and configuration. See [the status guide](../../README-STATUS.md).
 
 The installation script will:
 - Copy the broadcaster script to `/opt/remote-temp-monitor/`
@@ -57,10 +59,12 @@ cd MMM-RemoteTempMonitor/remote-service/Pi
 sudo ./update.sh
 ```
 
+The update script uses files from this checkout; run `git pull --ff-only` first to download changes. It updates the temperature service and, when installed, the status service, preserving existing environment configuration. It can be invoked from any directory.
+
 ### Option 2: Manual update
 ```bash
 cd MMM-RemoteTempMonitor/remote-service/Pi
-sudo cp temp_broadcaster.py /opt/remote-temp-monitor/
+sudo cp temp_broadcaster.py ../broadcaster_common.py /opt/remote-temp-monitor/
 sudo systemctl restart temp-monitor.service
 ```
 
@@ -92,7 +96,7 @@ sudo systemctl disable temp-monitor.service
 
 ## Browser Diagnostics
 
-The Raspberry Pi broadcaster also serves its latest local reading as JSON over HTTP. If the remote Pi address is `192.168.1.201`, browse to:
+The Raspberry Pi broadcaster also serves its latest local reading as JSON over HTTP, bound to `127.0.0.1` by default. Run `curl http://127.0.0.1:9876/temps` on the Pi. To allow remote browser access on a trusted LAN, set `TEMP_MONITOR_HTTP_HOST=0.0.0.0` in `/etc/default/temp-monitor` and restart the service. The direct HTTP endpoint has no authentication. If the remote Pi address is `192.168.1.201`, browse to:
 
 ```text
 http://192.168.1.201:9876/temps
@@ -177,7 +181,8 @@ sudo systemctl stop temp-monitor.service
 sudo systemctl disable temp-monitor.service
 
 # Remove files
-sudo rm /etc/systemd/system/temp-monitor.service
+sudo systemctl disable --now status-monitor.service
+sudo rm /etc/systemd/system/temp-monitor.service /etc/systemd/system/status-monitor.service
 sudo rm -rf /opt/remote-temp-monitor
 
 # Reload systemd
@@ -206,3 +211,5 @@ To require authenticated packets, set the same shared secret here and in the Mag
 ```bash
 TEMP_MONITOR_SHARED_SECRET=change-me
 ```
+
+Updates validate all sources, preserve environment configuration, use atomic file replacement, and restore previous files and service state if startup checks fail. The latest three backups per changed file are retained.
